@@ -3,63 +3,68 @@
 {% block content %}
 
 {# ── Toolbar ── #}
-<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+<div class="toolbar mb-4">
+  <div class="d-flex flex-wrap align-items-center gap-3">
 
-  {# Search #}
-  <div class="input-group input-group-sm" style="max-width:260px">
-    <span class="input-group-text bg-white border-end-0">
-      <i class="bi bi-search text-muted" style="font-size:.8rem"></i>
-    </span>
-    <input id="search-input" type="text" class="form-control border-start-0 ps-0"
-           placeholder="Szukaj produktu…" oninput="applyFilters()">
+    {# Search #}
+    <div class="input-group input-group-sm" style="max-width:300px">
+      <span class="input-group-text bg-white border-end-0">
+        <i class="bi bi-search text-muted"></i>
+      </span>
+      <input id="search-input" type="text" class="form-control border-start-0 ps-0"
+             placeholder="Szukaj produktu…" oninput="applyFilters()" autofocus>
+    </div>
+
+    {# Filter buttons #}
+    <button id="btn-filter-dropship" class="btn btn-sm btn-outline-secondary"
+            onclick="toggleFilter('dropship')" title="Pokaż tylko dropship">
+      <i class="bi bi-truck me-1"></i>Dropship
+    </button>
+
+    <button id="btn-filter-changed" class="btn btn-sm btn-outline-secondary"
+            onclick="toggleFilter('changed')" title="Pokaż tylko zmienione ceny">
+      <i class="bi bi-arrow-left-right me-1"></i>Zmiana ceny
+    </button>
+
+    {# Spacer + stats + update #}
+    <div class="ms-auto d-flex align-items-center gap-2">
+      <span class="text-muted small fw-semibold" id="count-label">
+        {{ products | length }} produkt{{ 'y' if products|length in [2,3,4] else ('ów' if products|length != 1 else '') }}
+      </span>
+
+      {% if products %}
+      <button id="btn-update-all" class="btn btn-sm btn-primary" onclick="updateAll()">
+        <i class="bi bi-arrow-clockwise me-2"></i>Aktualizuj
+      </button>
+      {% endif %}
+    </div>
+
   </div>
-
-  {# Filter buttons #}
-  <button id="btn-filter-dropship" class="btn btn-sm btn-outline-secondary"
-          onclick="toggleFilter('dropship')">
-    <i class="bi bi-truck me-1"></i>Dropship
-  </button>
-
-  <button id="btn-filter-changed" class="btn btn-sm btn-outline-secondary"
-          onclick="toggleFilter('changed')">
-    <i class="bi bi-arrow-left-right me-1"></i>Zmiana ceny
-  </button>
-
-  {# Spacer + count + update all #}
-  <span class="text-muted ms-auto small" id="count-label">
-    {{ products | length }} produkt{{ 'y' if products|length in [2,3,4] else ('ów' if products|length != 1 else '') }}
-  </span>
-
-  {% if products %}
-  <button id="btn-update-all" class="btn btn-sm btn-primary" onclick="updateAll()">
-    <i class="bi bi-arrow-clockwise me-1"></i>Aktualizuj wszystkie
-  </button>
-  {% endif %}
-
 </div>
 
 {% if not products %}
-<div class="text-center py-5 text-muted">
-  <i class="bi bi-cart-x" style="font-size:3rem"></i>
-  <p class="mt-3 mb-1">Brak monitorowanych produktów.</p>
-  <a href="/add" class="btn btn-warning mt-2 btn-sm">
-    <i class="bi bi-plus-lg me-1"></i>Dodaj pierwszy produkt
+<div class="empty-state card shadow-sm py-5">
+  <i class="bi bi-inbox"></i>
+  <h5 class="mt-3">Brak monitorowanych produktów</h5>
+  <p class="text-muted mb-3">Zacznij od dodania pierwszego produktu do listy.</p>
+  <a href="/add" class="btn btn-warning btn-sm d-inline-flex align-items-center gap-2">
+    <i class="bi bi-plus-lg"></i>Dodaj pierwszy produkt
   </a>
 </div>
 
 {% else %}
 <div class="card shadow-sm">
   <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0 table-sm">
-      <thead class="table-dark" style="font-size:.78rem">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-dark">
         <tr>
-          <th style="width:54px"></th>
+          <th style="width:56px"></th>
           <th>Produkt</th>
           <th class="text-end">Cena</th>
           <th class="text-end">Zmiana</th>
           <th class="text-end">Min.</th>
-          <th class="text-center" style="width:105px">Aktualizacja</th>
-          <th class="text-center" style="width:95px">Akcje</th>
+          <th class="text-center" style="width:110px">Aktualizacja</th>
+          <th class="text-center" style="width:130px">Akcje</th>
         </tr>
       </thead>
       <tbody id="products-tbody">
@@ -68,12 +73,13 @@
             data-name="{{ p.name | lower }}"
             data-store="{{ p.store | lower }}"
             data-dropship="{{ '1' if p.is_dropship else '0' }}"
-            data-changed="{{ '1' if p.previous_price is not none and p.current_price != p.previous_price else '0' }}">
+            data-changed="{{ '1' if p.previous_price is not none and p.current_price != p.previous_price else '0' }}"
+            class="fade-in">
 
           {# Thumbnail #}
-          <td class="ps-2">
+          <td class="ps-3">
             {% if p.thumbnail_url %}
-              <img src="{{ p.thumbnail_url }}" alt="" class="product-thumb">
+              <img src="{{ p.thumbnail_url }}" alt="" class="product-thumb" loading="lazy">
             {% else %}
               <div class="product-thumb-placeholder">
                 <i class="bi bi-image text-muted"></i>
@@ -81,19 +87,19 @@
             {% endif %}
           </td>
 
-          {# Name + store + dropship badge #}
+          {# Name + store + dropship #}
           <td>
-            <div class="fw-semibold lh-sm" style="font-size:.85rem">
+            <div class="fw-semibold lh-sm" style="font-size:.9rem">
               <a href="{{ p.url }}" target="_blank" rel="noopener"
-                 class="text-decoration-none text-dark">{{ p.name }}</a>
+                 class="text-decoration-none text-dark hover-link">{{ p.name }}</a>
               <a href="{{ p.url }}" target="_blank" rel="noopener" class="ms-1">
                 <i class="bi bi-box-arrow-up-right text-muted" style="font-size:.65rem"></i>
               </a>
             </div>
-            <div class="d-flex align-items-center gap-1 mt-1">
-              <span class="badge bg-secondary" style="font-size:.65rem">{{ p.store }}</span>
+            <div class="d-flex align-items-center gap-2 mt-1 flex-wrap">
+              <span class="badge bg-secondary">{{ p.store }}</span>
               {% if p.is_dropship %}
-              <span class="badge bg-info text-dark dropship-badge" style="font-size:.65rem">
+              <span class="badge bg-info dropship-badge">
                 <i class="bi bi-truck me-1"></i>Dropship
               </span>
               {% endif %}
@@ -102,24 +108,24 @@
 
           {# Current price #}
           <td class="text-end">
-            <span id="price-{{ p.id }}" class="fw-bold" style="font-size:.9rem">
+            <span id="price-{{ p.id }}" class="fw-bold" style="font-size:.95rem">
               {% if p.current_price is not none %}
-                {{ "%.2f"|format(p.current_price) }}&nbsp;{{ p.currency }}
+                {{ "%.2f"|format(p.current_price) }}&nbsp;<small class="text-muted">{{ p.currency }}</small>
               {% else %}<span class="text-muted">—</span>{% endif %}
             </span>
           </td>
 
-          {# Change #}
-          <td class="text-end" id="change-{{ p.id }}" style="font-size:.82rem">
+          {# Change % #}
+          <td class="text-end" id="change-{{ p.id }}" style="font-size:.85rem">
             {% if p.previous_price is not none and p.current_price is not none %}
               {% set diff = p.current_price - p.previous_price %}
               {% set pct  = diff / p.previous_price * 100 %}
               {% if diff < 0 %}
-                <span class="text-success fw-semibold">
+                <span class="text-success fw-bold">
                   <i class="bi bi-arrow-down-short"></i>{{ "%.1f"|format(pct|abs) }}%
                 </span>
               {% elif diff > 0 %}
-                <span class="text-danger fw-semibold">
+                <span class="text-danger fw-bold">
                   <i class="bi bi-arrow-up-short"></i>{{ "%.1f"|format(pct) }}%
                 </span>
               {% else %}
@@ -131,45 +137,47 @@
           </td>
 
           {# Min historical #}
-          <td class="text-end" style="font-size:.82rem">
+          <td class="text-end" style="font-size:.85rem">
             {% if p.min_price is not none %}
-              <span class="text-success fw-semibold">
-                {{ "%.2f"|format(p.min_price) }}&nbsp;{{ p.currency }}
+              <span class="text-success fw-bold">
+                {{ "%.2f"|format(p.min_price) }}&nbsp;<small>{{ p.currency }}</small>
               </span>
             {% else %}<span class="text-muted">—</span>{% endif %}
           </td>
 
           {# Last updated #}
-          <td class="text-center text-muted" id="updated-{{ p.id }}"
-              style="font-size:.72rem; white-space:nowrap">
+          <td class="text-center text-muted no-wrap" id="updated-{{ p.id }}"
+              style="font-size:.75rem">
             {% if p.last_updated %}{{ p.last_updated[:16] }}{% else %}—{% endif %}
           </td>
 
           {# Actions #}
-          <td class="text-center">
-            {# Dropship toggle #}
-            <button class="btn btn-xs me-1 {% if p.is_dropship %}btn-info{% else %}btn-outline-secondary{% endif %}"
-                    id="ds-btn-{{ p.id }}"
-                    onclick="toggleDropship({{ p.id }})"
-                    title="{% if p.is_dropship %}Oznaczony jako Dropship{% else %}Oznacz jako Dropship{% endif %}">
-              <i class="bi bi-truck"></i>
-            </button>
-            {# Update #}
-            <button class="btn btn-xs btn-outline-primary me-1"
-                    onclick="updateProduct({{ p.id }})" title="Aktualizuj cenę">
-              <i class="bi bi-arrow-clockwise" id="spin-{{ p.id }}"></i>
-            </button>
-            {# History #}
-            <a href="/product/{{ p.id }}"
-               class="btn btn-xs btn-outline-secondary me-1" title="Historia cen">
-              <i class="bi bi-graph-up"></i>
-            </a>
-            {# Delete #}
-            <button class="btn btn-xs btn-outline-danger"
-                    onclick="deleteProduct({{ p.id }}, {{ p.name | tojson }})"
-                    title="Usuń">
-              <i class="bi bi-trash3"></i>
-            </button>
+          <td class="text-center pe-3">
+            <div class="btn-group btn-group-sm gap-1" role="group">
+              {# Dropship toggle #}
+              <button class="btn {% if p.is_dropship %}btn-info{% else %}btn-outline-secondary{% endif %}"
+                      id="ds-btn-{{ p.id }}"
+                      onclick="toggleDropship({{ p.id }})"
+                      title="{% if p.is_dropship %}Oznaczony jako Dropship{% else %}Oznacz jako Dropship{% endif %}">
+                <i class="bi bi-truck"></i>
+              </button>
+              {# Update #}
+              <button class="btn btn-outline-primary"
+                      onclick="updateProduct({{ p.id }})" title="Aktualizuj cenę">
+                <i class="bi bi-arrow-clockwise" id="spin-{{ p.id }}"></i>
+              </button>
+              {# History #}
+              <a href="/product/{{ p.id }}"
+                 class="btn btn-outline-secondary" title="Historia cen">
+                <i class="bi bi-graph-up"></i>
+              </a>
+              {# Delete #}
+              <button class="btn btn-outline-danger"
+                      onclick="deleteProduct({{ p.id }}, {{ p.name | tojson }})"
+                      title="Usuń produkt">
+                <i class="bi bi-trash3"></i>
+              </button>
+            </div>
           </td>
 
         </tr>
@@ -179,8 +187,9 @@
   </div>
 </div>
 
-<p id="no-results" class="text-center text-muted py-4 d-none">
-  Brak produktów spełniających kryteria filtrowania.
+<p id="no-results" class="text-center text-muted py-5 d-none">
+  <i class="bi bi-search" style="font-size:2rem; opacity:0.5"></i>
+  <p class="mt-3">Brak produktów spełniających kryteria filtrowania.</p>
 </p>
 
 {% endif %}
@@ -251,21 +260,18 @@ async function toggleDropship(id) {
 
   row.dataset.dropship = isNow ? '1' : '0';
 
-  // Update badge in name cell
   const badgeEl = row.querySelector('.dropship-badge');
   if (isNow && !badgeEl) {
     const badgeDiv = row.querySelector('.d-flex.align-items-center');
     const badge = document.createElement('span');
-    badge.className = 'badge bg-info text-dark dropship-badge';
-    badge.style.fontSize = '.65rem';
+    badge.className = 'badge bg-info dropship-badge';
     badge.innerHTML = '<i class="bi bi-truck me-1"></i>Dropship';
     badgeDiv.appendChild(badge);
   } else if (!isNow && badgeEl) {
     badgeEl.remove();
   }
 
-  // Update button style
-  btn.className = 'btn btn-xs me-1 ' + (isNow ? 'btn-info' : 'btn-outline-secondary');
+  btn.className = 'btn btn-xs ' + (isNow ? 'btn-info' : 'btn-outline-secondary');
   btn.title = isNow ? 'Oznaczony jako Dropship' : 'Oznacz jako Dropship';
 
   applyFilters();
@@ -291,14 +297,14 @@ async function updateProduct(id) {
 async function updateAll() {
   const btn = document.getElementById('btn-update-all');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Aktualizuję…';
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Aktualizuję…';
   try {
     await fetch('/update-all', { method: 'POST' });
     location.reload();
   } catch (e) {
     alert('Błąd: ' + e);
     btn.disabled = false;
-    btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Aktualizuj wszystkie';
+    btn.innerHTML = '<i class="bi bi-arrow-clockwise me-2"></i>Aktualizuj';
   }
 }
 
