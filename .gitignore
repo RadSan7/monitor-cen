@@ -1,0 +1,35 @@
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Database
+prices.db
+*.db
+
+# Thumbnails
+static/thumbs/
+
+# Flask
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+instance/
+.webassets-cache
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local

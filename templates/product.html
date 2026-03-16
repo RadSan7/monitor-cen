@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block title %}{{ product.name }} — Monitor Cen{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-4">
+  <a href="/" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <h5 class="mb-0 text-truncate">{{ product.name }}</h5>
+</div>
+
+<div class="row g-4">
+
+  {# ── Left column: product info ── #}
+  <div class="col-md-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-body p-4">
+
+        {% if product.thumbnail_url %}
+        <div class="text-center mb-3">
+          <img src="{{ product.thumbnail_url }}" alt="{{ product.name }}"
+               style="max-height:180px;max-width:100%;object-fit:contain;
+                      background:#f8f9fa;border-radius:10px;padding:8px">
+        </div>
+        {% endif %}
+
+        <h6 class="fw-semibold">{{ product.name }}</h6>
+        <span class="badge bg-secondary mb-3">{{ product.store }}</span>
+
+        <div class="list-group list-group-flush small">
+          <div class="list-group-item px-0 d-flex justify-content-between">
+            <span class="text-muted">Cena aktualna</span>
+            <strong>
+              {% if product.current_price is not none %}
+                {{ "%.2f"|format(product.current_price) }}&nbsp;{{ product.currency }}
+              {% else %}—{% endif %}
+            </strong>
+          </div>
+
+          <div class="list-group-item px-0 d-flex justify-content-between">
+            <span class="text-muted">Poprzednia cena</span>
+            <span>
+              {% if product.previous_price is not none %}
+                {{ "%.2f"|format(product.previous_price) }}&nbsp;{{ product.currency }}
+              {% else %}—{% endif %}
+            </span>
+          </div>
+
+          <div class="list-group-item px-0 d-flex justify-content-between">
+            <span class="text-muted">Min. historyczna</span>
+            <strong class="text-success">
+              {% if product.min_price is not none %}
+                {{ "%.2f"|format(product.min_price) }}&nbsp;{{ product.currency }}
+              {% else %}—{% endif %}
+            </strong>
+          </div>
+
+          <div class="list-group-item px-0 d-flex justify-content-between">
+            <span class="text-muted">Pomiarów</span>
+            <span>{{ history | length }}</span>
+          </div>
+
+          <div class="list-group-item px-0 d-flex justify-content-between">
+            <span class="text-muted">Ostatnia aktualizacja</span>
+            <small>
+              {% if product.last_updated %}{{ product.last_updated[:16] }}{% else %}—{% endif %}
+            </small>
+          </div>
+        </div>
+
+        <div class="mt-4 d-flex flex-column gap-2">
+          <a href="{{ product.url }}" target="_blank" rel="noopener"
+             class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-box-arrow-up-right me-1"></i>Otwórz w sklepie
+          </a>
+          <button class="btn btn-primary btn-sm" onclick="updateNow({{ product.id }})">
+            <i class="bi bi-arrow-clockwise me-1" id="spin-{{ product.id }}"></i>Aktualizuj cenę
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  {# ── Right column: chart + history table ── #}
+  <div class="col-md-8 d-flex flex-column gap-4">
+
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <h6 class="mb-3">Historia cen</h6>
+        {% if history | length >= 2 %}
+          <canvas id="priceChart"></canvas>
+        {% else %}
+          <p class="text-muted mb-0">
+            Za mało danych do wykresu (potrzeba co najmniej 2 pomiarów).
+            Kliknij „Aktualizuj cenę" aby dodać nowy pomiar.
+          </p>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if history %}
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <h6 class="mb-3">Wszystkie pomiary</h6>
+        <div style="max-height:260px;overflow-y:auto">
+          <table class="table table-sm mb-0">
+            <thead class="table-light sticky-top">
+              <tr>
+                <th>Data i godzina</th>
+                <th class="text-end">Cena</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for h in history | reverse %}
+              <tr>
+                <td class="text-muted small">{{ h.checked_at[:16] }}</td>
+                <td class="text-end fw-semibold">
+                  {{ "%.2f"|format(h.price) }}&nbsp;{{ product.currency }}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+{% if history | length >= 2 %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+const labels = {{ history | map(attribute='checked_at') | map('truncate', 16, False, '') | list | tojson }};
+const prices = {{ history | map(attribute='price') | list | tojson }};
+const currency = {{ product.currency | tojson }};
+const minPrice = Math.min(...prices);
+
+new Chart(document.getElementById('priceChart'), {
+  type: 'line',
+  data: {
+    labels,
+    datasets: [{
+      label: 'Cena (' + currency + ')',
+      data: prices,
+      borderColor: '#0d6efd',
+      backgroundColor: 'rgba(13,110,253,0.07)',
+      tension: 0.3,
+      fill: true,
+      pointRadius: 4,
+      pointHoverRadius: 7,
+      pointBackgroundColor: prices.map(p =>
+        p === minPrice ? '#198754' : '#0d6efd'
+      ),
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => ctx.parsed.y.toFixed(2) + ' ' + currency
+        }
+      }
+    },
+    scales: {
+      x: { ticks: { maxTicksLimit: 8, maxRotation: 30 } },
+      y: {
+        beginAtZero: false,
+        ticks: { callback: v => v.toFixed(2) + ' ' + currency }
+      }
+    }
+  }
+});
+</script>
+{% endif %}
+
+<script>
+async function updateNow(id) {
+  const icon = document.getElementById('spin-' + id);
+  icon.classList.add('spin');
+  try {
+    const res  = await fetch('/update/' + id, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      location.reload();
+    } else {
+      alert('Błąd: ' + (data.error || 'Nieznany błąd'));
+    }
+  } catch (e) {
+    alert('Błąd połączenia: ' + e);
+  } finally {
+    icon.classList.remove('spin');
+  }
+}
+</script>
+{% endblock %}

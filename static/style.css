@@ -1,0 +1,69 @@
+/* ── Product thumbnail (compact) ─────────────────────────────── */
+.product-thumb {
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+  background: #f8f9fa;
+  border-radius: 6px;
+  padding: 3px;
+  display: block;
+}
+
+.product-thumb-placeholder {
+  width: 46px;
+  height: 46px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+}
+
+/* ── Spinning refresh icon ───────────────────────────────────── */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.spin {
+  display: inline-block;
+  animation: spin 0.8s linear infinite;
+}
+
+/* ── Table: compact rows ─────────────────────────────────────── */
+.table-sm > :not(caption) > * > * {
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
+}
+
+.table thead th {
+  white-space: nowrap;
+}
+
+/* ── Extra-small button (xs) ─────────────────────────────────── */
+.btn-xs {
+  padding: 0.15rem 0.35rem;
+  font-size: .75rem;
+  line-height: 1.4;
+  border-radius: 4px;
+}
+
+/* ── Active filter buttons ───────────────────────────────────── */
+#btn-filter-dropship.active {
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+  color: #fff;
+}
+
+#btn-filter-changed.active {
+  background-color: #ffc107;
+  border-color: #ffc107;
+  color: #000;
+}
+
+/* ── Search input: remove double border ──────────────────────── */
+.input-group .form-control:focus {
+  box-shadow: none;
+  border-color: #dee2e6;
+}

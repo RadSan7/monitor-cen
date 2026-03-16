@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Wyniki importu — Monitor Cen{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-8 col-lg-7">
+
+    <div class="d-flex align-items-center gap-2 mb-4">
+      <a href="/" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i>
+      </a>
+      <h5 class="mb-0">Wyniki importu</h5>
+    </div>
+
+    {# Summary bar #}
+    <div class="d-flex gap-3 mb-4">
+      <div class="card flex-fill text-center py-3 border-success">
+        <div class="fs-2 fw-bold text-success">{{ added }}</div>
+        <div class="text-muted small">dodano</div>
+      </div>
+      <div class="card flex-fill text-center py-3 {% if failed > 0 %}border-danger{% endif %}">
+        <div class="fs-2 fw-bold {% if failed > 0 %}text-danger{% else %}text-muted{% endif %}">{{ failed }}</div>
+        <div class="text-muted small">błędów</div>
+      </div>
+      <div class="card flex-fill text-center py-3">
+        <div class="fs-2 fw-bold">{{ results | length }}</div>
+        <div class="text-muted small">łącznie</div>
+      </div>
+    </div>
+
+    {# Results list #}
+    <div class="card shadow-sm">
+      <div class="list-group list-group-flush">
+        {% for r in results %}
+        <div class="list-group-item px-4 py-3">
+          <div class="d-flex align-items-start gap-3">
+
+            {# Status icon #}
+            {% if r.success %}
+              <span class="mt-1 text-success fs-5"><i class="bi bi-check-circle-fill"></i></span>
+            {% else %}
+              <span class="mt-1 text-danger fs-5"><i class="bi bi-x-circle-fill"></i></span>
+            {% endif %}
+
+            <div class="flex-grow-1 overflow-hidden">
+              {% if r.success %}
+                {# Success row #}
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                  {% if r.data.thumbnail_url %}
+                  <img src="{{ r.data.thumbnail_url }}" alt=""
+                       style="width:36px;height:36px;object-fit:contain;background:#f8f9fa;border-radius:6px;padding:2px;flex-shrink:0">
+                  {% endif %}
+                  <div class="fw-semibold text-truncate" style="max-width:340px">{{ r.data.name }}</div>
+                  <span class="badge bg-secondary" style="font-size:.65rem">{{ r.data.store }}</span>
+                  <span class="text-success fw-bold ms-auto">{{ "%.2f"|format(r.data.price) }}&nbsp;{{ r.data.currency }}</span>
+                </div>
+                <a href="{{ r.url }}" target="_blank" rel="noopener"
+                   class="text-muted small d-block text-truncate mt-1">{{ r.url }}</a>
+              {% else %}
+                {# Error row #}
+                <div class="text-truncate text-muted small mb-1">{{ r.url }}</div>
+                <div class="text-danger small"><i class="bi bi-exclamation-triangle me-1"></i>{{ r.error }}</div>
+              {% endif %}
+            </div>
+
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {# Actions #}
+    <div class="d-flex gap-2 mt-4">
+      <a href="/" class="btn btn-success flex-fill">
+        <i class="bi bi-list-ul me-1"></i>Przejdź do listy produktów
+      </a>
+      <a href="/add" class="btn btn-outline-secondary">
+        <i class="bi bi-plus-lg me-1"></i>Dodaj więcej
+      </a>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

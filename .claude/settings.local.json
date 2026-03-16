@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(curl -s -L --max-time 10 \"https://web.archive.org/web/*/fnacpro.fr\")",
+      "Bash(curl -s -L --max-time 10 \"https://web.archive.org/web/*/homecinesolutions.fr\")",
+      "WebFetch(domain:www.fnacpro.com)",
+      "Bash(.venv/bin/pip install:*)",
+      "Bash(.venv/bin/python -c \":*)"
+    ]
+  }
+}

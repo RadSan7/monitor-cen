@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Dodaj produkt — Monitor Cen{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6 col-lg-5">
+
+    <div class="d-flex align-items-center gap-2 mb-4">
+      <a href="/" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i>
+      </a>
+      <h5 class="mb-0">Dodaj produkt</h5>
+    </div>
+
+    {% if not preview %}
+
+    {# ── Tabs ── #}
+    {% set tab = active_tab or 'single' %}
+    <ul class="nav nav-tabs mb-3">
+      <li class="nav-item">
+        <a class="nav-link {% if tab == 'single' %}active{% endif %}" href="/add">Jeden produkt</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link {% if tab == 'bulk' %}active{% endif %}" href="#" id="tab-bulk-link">
+          <i class="bi bi-stack me-1"></i>Bulk (wiele linków)
+        </a>
+      </li>
+    </ul>
+
+    {# ── Single URL ── #}
+    <div id="panel-single" {% if tab == 'bulk' %}class="d-none"{% endif %}>
+      <div class="card shadow-sm">
+        <div class="card-body p-4">
+          <p class="text-muted small mb-3">Wklej link do produktu z jednego z obsługiwanych sklepów:</p>
+          <div class="d-flex gap-2 mb-4">
+            <span class="badge bg-dark px-3 py-2">fnacpro.com</span>
+            <span class="badge bg-dark px-3 py-2">homecinesolutions.fr</span>
+          </div>
+          <form method="POST" action="/add" id="form-preview">
+            <input type="hidden" name="action" value="preview">
+            <label class="form-label fw-semibold" for="url-input">URL produktu</label>
+            <div class="input-group mb-3">
+              <span class="input-group-text"><i class="bi bi-link-45deg"></i></span>
+              <input type="url" id="url-input" name="url" class="form-control"
+                     placeholder="https://www.fnacpro.com/…"
+                     value="{{ prefill_url or '' }}" required>
+            </div>
+            <button type="submit" class="btn btn-warning w-100" id="btn-fetch">
+              <i class="bi bi-search me-1"></i>Pobierz informacje o produkcie
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    {# ── Bulk URLs ── #}
+    <div id="panel-bulk" {% if tab != 'bulk' %}class="d-none"{% endif %}>
+      <div class="card shadow-sm">
+        <div class="card-body p-4">
+          <p class="text-muted small mb-3">
+            Wklej linki do produktów — <strong>jeden na linię</strong>.
+            Obsługiwane: <code>fnacpro.com</code>, <code>homecinesolutions.fr</code>
+          </p>
+          <form method="POST" action="/add/bulk" id="form-bulk">
+            <label class="form-label fw-semibold" for="bulk-urls">Linki produktów</label>
+            <textarea id="bulk-urls" name="urls" class="form-control font-monospace mb-2"
+                      rows="10"
+                      placeholder="https://www.fnacpro.com/...
+https://www.homecinesolutions.fr/...
+https://www.fnacpro.com/..."
+                      required>{{ prefill_urls or '' }}</textarea>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <span id="url-count" class="text-muted small">0 linków</span>
+            </div>
+            <button type="submit" class="btn btn-warning w-100" id="btn-bulk">
+              <i class="bi bi-cloud-download me-1"></i>Pobierz i dodaj wszystkie
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    {% else %}
+
+    {# ── Step 2: Single preview + confirm ── #}
+    <div class="card shadow-sm mb-3">
+      <div class="card-body p-4">
+        <p class="text-muted small mb-3">Sprawdź poprawność danych i potwierdź dodanie:</p>
+        <div class="d-flex gap-3 align-items-start mb-3">
+          {% if preview.thumbnail_url %}
+          <img src="{{ preview.thumbnail_url }}" alt=""
+               style="width:90px;height:90px;object-fit:contain;background:#f8f9fa;border-radius:10px;padding:4px;flex-shrink:0">
+          {% endif %}
+          <div>
+            <div class="fw-semibold fs-5 lh-sm">{{ preview.name }}</div>
+            <span class="badge bg-secondary mt-1">{{ preview.store }}</span>
+            <div class="mt-2 fw-bold fs-4 text-success">{{ "%.2f"|format(preview.price) }}&nbsp;{{ preview.currency }}</div>
+          </div>
+        </div>
+        <a href="{{ preview.url }}" target="_blank" rel="noopener"
+           class="text-muted small d-block text-truncate mb-3">
+          <i class="bi bi-link-45deg me-1"></i>{{ preview.url }}
+        </a>
+        <form method="POST" action="/add">
+          <input type="hidden" name="action"        value="confirm">
+          <input type="hidden" name="name"          value="{{ preview.name }}">
+          <input type="hidden" name="url"           value="{{ preview.url }}">
+          <input type="hidden" name="store"         value="{{ preview.store }}">
+          <input type="hidden" name="thumbnail_url" value="{{ preview.thumbnail_url or '' }}">
+          <input type="hidden" name="price"         value="{{ preview.price }}">
+          <input type="hidden" name="currency"      value="{{ preview.currency }}">
+          <div class="d-flex gap-2">
+            <a href="/add" class="btn btn-outline-secondary flex-fill">
+              <i class="bi bi-arrow-left me-1"></i>Wróć
+            </a>
+            <button type="submit" class="btn btn-success flex-fill">
+              <i class="bi bi-check-lg me-1"></i>Dodaj do monitorowania
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('tab-bulk-link')?.addEventListener('click', function(e) {
+  e.preventDefault();
+  document.getElementById('panel-single').classList.add('d-none');
+  document.getElementById('panel-bulk').classList.remove('d-none');
+  document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+  this.classList.add('active');
+  document.getElementById('bulk-urls')?.focus();
+});
+
+const textarea = document.getElementById('bulk-urls');
+const counter  = document.getElementById('url-count');
+function updateCount() {
+  if (!textarea || !counter) return;
+  const n = textarea.value.split('\n').filter(l => l.trim()).length;
+  counter.textContent = n + ' link' + (n === 1 ? '' : 'ów');
+}
+textarea?.addEventListener('input', updateCount);
+updateCount();
+
+document.getElementById('form-preview')?.addEventListener('submit', function() {
+  const btn = document.getElementById('btn-fetch');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Pobieram…';
+});
+
+document.getElementById('form-bulk')?.addEventListener('submit', function() {
+  const n = textarea.value.split('\n').filter(l => l.trim()).length;
+  const btn = document.getElementById('btn-bulk');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Pobieram ' + n + ' produkt' + (n === 1 ? '' : 'ów') + '…';
+});
+</script>
+{% endblock %}

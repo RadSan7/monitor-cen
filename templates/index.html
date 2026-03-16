@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+{# ── Toolbar ── #}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+
+  {# Search #}
+  <div class="input-group input-group-sm" style="max-width:260px">
+    <span class="input-group-text bg-white border-end-0">
+      <i class="bi bi-search text-muted" style="font-size:.8rem"></i>
+    </span>
+    <input id="search-input" type="text" class="form-control border-start-0 ps-0"
+           placeholder="Szukaj produktu…" oninput="applyFilters()">
+  </div>
+
+  {# Filter buttons #}
+  <button id="btn-filter-dropship" class="btn btn-sm btn-outline-secondary"
+          onclick="toggleFilter('dropship')">
+    <i class="bi bi-truck me-1"></i>Dropship
+  </button>
+
+  <button id="btn-filter-changed" class="btn btn-sm btn-outline-secondary"
+          onclick="toggleFilter('changed')">
+    <i class="bi bi-arrow-left-right me-1"></i>Zmiana ceny
+  </button>
+
+  {# Spacer + count + update all #}
+  <span class="text-muted ms-auto small" id="count-label">
+    {{ products | length }} produkt{{ 'y' if products|length in [2,3,4] else ('ów' if products|length != 1 else '') }}
+  </span>
+
+  {% if products %}
+  <button id="btn-update-all" class="btn btn-sm btn-primary" onclick="updateAll()">
+    <i class="bi bi-arrow-clockwise me-1"></i>Aktualizuj wszystkie
+  </button>
+  {% endif %}
+
+</div>
+
+{% if not products %}
+<div class="text-center py-5 text-muted">
+  <i class="bi bi-cart-x" style="font-size:3rem"></i>
+  <p class="mt-3 mb-1">Brak monitorowanych produktów.</p>
+  <a href="/add" class="btn btn-warning mt-2 btn-sm">
+    <i class="bi bi-plus-lg me-1"></i>Dodaj pierwszy produkt
+  </a>
+</div>
+
+{% else %}
+<div class="card shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 table-sm">
+      <thead class="table-dark" style="font-size:.78rem">
+        <tr>
+          <th style="width:54px"></th>
+          <th>Produkt</th>
+          <th class="text-end">Cena</th>
+          <th class="text-end">Zmiana</th>
+          <th class="text-end">Min.</th>
+          <th class="text-center" style="width:105px">Aktualizacja</th>
+          <th class="text-center" style="width:95px">Akcje</th>
+        </tr>
+      </thead>
+      <tbody id="products-tbody">
+        {% for p in products %}
+        <tr id="row-{{ p.id }}"
+            data-name="{{ p.name | lower }}"
+            data-store="{{ p.store | lower }}"
+            data-dropship="{{ '1' if p.is_dropship else '0' }}"
+            data-changed="{{ '1' if p.previous_price is not none and p.current_price != p.previous_price else '0' }}">
+
+          {# Thumbnail #}
+          <td class="ps-2">
+            {% if p.thumbnail_url %}
+              <img src="{{ p.thumbnail_url }}" alt="" class="product-thumb">
+            {% else %}
+              <div class="product-thumb-placeholder">
+                <i class="bi bi-image text-muted"></i>
+              </div>
+            {% endif %}
+          </td>
+
+          {# Name + store + dropship badge #}
+          <td>
+            <div class="fw-semibold lh-sm" style="font-size:.85rem">
+              <a href="{{ p.url }}" target="_blank" rel="noopener"
+                 class="text-decoration-none text-dark">{{ p.name }}</a>
+              <a href="{{ p.url }}" target="_blank" rel="noopener" class="ms-1">
+                <i class="bi bi-box-arrow-up-right text-muted" style="font-size:.65rem"></i>
+              </a>
+            </div>
+            <div class="d-flex align-items-center gap-1 mt-1">
+              <span class="badge bg-secondary" style="font-size:.65rem">{{ p.store }}</span>
+              {% if p.is_dropship %}
+              <span class="badge bg-info text-dark dropship-badge" style="font-size:.65rem">
+                <i class="bi bi-truck me-1"></i>Dropship
+              </span>
+              {% endif %}
+            </div>
+          </td>
+
+          {# Current price #}
+          <td class="text-end">
+            <span id="price-{{ p.id }}" class="fw-bold" style="font-size:.9rem">
+              {% if p.current_price is not none %}
+                {{ "%.2f"|format(p.current_price) }}&nbsp;{{ p.currency }}
+              {% else %}<span class="text-muted">—</span>{% endif %}
+            </span>
+          </td>
+
+          {# Change #}
+          <td class="text-end" id="change-{{ p.id }}" style="font-size:.82rem">
+            {% if p.previous_price is not none and p.current_price is not none %}
+              {% set diff = p.current_price - p.previous_price %}
+              {% set pct  = diff / p.previous_price * 100 %}
+              {% if diff < 0 %}
+                <span class="text-success fw-semibold">
+                  <i class="bi bi-arrow-down-short"></i>{{ "%.1f"|format(pct|abs) }}%
+                </span>
+              {% elif diff > 0 %}
+                <span class="text-danger fw-semibold">
+                  <i class="bi bi-arrow-up-short"></i>{{ "%.1f"|format(pct) }}%
+                </span>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+
+          {# Min historical #}
+          <td class="text-end" style="font-size:.82rem">
+            {% if p.min_price is not none %}
+              <span class="text-success fw-semibold">
+                {{ "%.2f"|format(p.min_price) }}&nbsp;{{ p.currency }}
+              </span>
+            {% else %}<span class="text-muted">—</span>{% endif %}
+          </td>
+
+          {# Last updated #}
+          <td class="text-center text-muted" id="updated-{{ p.id }}"
+              style="font-size:.72rem; white-space:nowrap">
+            {% if p.last_updated %}{{ p.last_updated[:16] }}{% else %}—{% endif %}
+          </td>
+
+          {# Actions #}
+          <td class="text-center">
+            {# Dropship toggle #}
+            <button class="btn btn-xs me-1 {% if p.is_dropship %}btn-info{% else %}btn-outline-secondary{% endif %}"
+                    id="ds-btn-{{ p.id }}"
+                    onclick="toggleDropship({{ p.id }})"
+                    title="{% if p.is_dropship %}Oznaczony jako Dropship{% else %}Oznacz jako Dropship{% endif %}">
+              <i class="bi bi-truck"></i>
+            </button>
+            {# Update #}
+            <button class="btn btn-xs btn-outline-primary me-1"
+                    onclick="updateProduct({{ p.id }})" title="Aktualizuj cenę">
+              <i class="bi bi-arrow-clockwise" id="spin-{{ p.id }}"></i>
+            </button>
+            {# History #}
+            <a href="/product/{{ p.id }}"
+               class="btn btn-xs btn-outline-secondary me-1" title="Historia cen">
+              <i class="bi bi-graph-up"></i>
+            </a>
+            {# Delete #}
+            <button class="btn btn-xs btn-outline-danger"
+                    onclick="deleteProduct({{ p.id }}, {{ p.name | tojson }})"
+                    title="Usuń">
+              <i class="bi bi-trash3"></i>
+            </button>
+          </td>
+
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<p id="no-results" class="text-center text-muted py-4 d-none">
+  Brak produktów spełniających kryteria filtrowania.
+</p>
+
+{% endif %}
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+// ── Filter state ──────────────────────────────────────────────────────────────
+const activeFilters = new Set();
+
+function toggleFilter(name) {
+  const btn = document.getElementById('btn-filter-' + name);
+  if (activeFilters.has(name)) {
+    activeFilters.delete(name);
+    btn.classList.remove('active', 'btn-primary', 'btn-warning');
+    btn.classList.add('btn-outline-secondary');
+  } else {
+    activeFilters.add(name);
+    btn.classList.remove('btn-outline-secondary');
+    btn.classList.add('active', name === 'dropship' ? 'btn-primary' : 'btn-warning');
+  }
+  applyFilters();
+}
+
+function applyFilters() {
+  const query   = document.getElementById('search-input').value.toLowerCase().trim();
+  const rows    = document.querySelectorAll('#products-tbody tr');
+  let visible   = 0;
+
+  rows.forEach(row => {
+    const name     = row.dataset.name  || '';
+    const store    = row.dataset.store || '';
+    const dropship = row.dataset.dropship === '1';
+    const changed  = row.dataset.changed  === '1';
+
+    const matchSearch   = !query || name.includes(query) || store.includes(query);
+    const matchDropship = !activeFilters.has('dropship') || dropship;
+    const matchChanged  = !activeFilters.has('changed')  || changed;
+
+    const show = matchSearch && matchDropship && matchChanged;
+    row.classList.toggle('d-none', !show);
+    if (show) visible++;
+  });
+
+  const noResults = document.getElementById('no-results');
+  if (noResults) noResults.classList.toggle('d-none', visible > 0);
+
+  const label = document.getElementById('count-label');
+  if (label) label.textContent = visible + ' produkt' + pluralPL(visible);
+}
+
+function pluralPL(n) {
+  if (n === 1) return '';
+  if ([2,3,4].includes(n % 10) && ![12,13,14].includes(n % 100)) return 'y';
+  return 'ów';
+}
+
+// ── Dropship toggle ───────────────────────────────────────────────────────────
+async function toggleDropship(id) {
+  const res  = await fetch('/dropship/' + id, { method: 'POST' });
+  const data = await res.json();
+  if (!data.success) return;
+
+  const row = document.getElementById('row-' + id);
+  const btn = document.getElementById('ds-btn-' + id);
+  const isNow = data.is_dropship;
+
+  row.dataset.dropship = isNow ? '1' : '0';
+
+  // Update badge in name cell
+  const badgeEl = row.querySelector('.dropship-badge');
+  if (isNow && !badgeEl) {
+    const badgeDiv = row.querySelector('.d-flex.align-items-center');
+    const badge = document.createElement('span');
+    badge.className = 'badge bg-info text-dark dropship-badge';
+    badge.style.fontSize = '.65rem';
+    badge.innerHTML = '<i class="bi bi-truck me-1"></i>Dropship';
+    badgeDiv.appendChild(badge);
+  } else if (!isNow && badgeEl) {
+    badgeEl.remove();
+  }
+
+  // Update button style
+  btn.className = 'btn btn-xs me-1 ' + (isNow ? 'btn-info' : 'btn-outline-secondary');
+  btn.title = isNow ? 'Oznaczony jako Dropship' : 'Oznacz jako Dropship';
+
+  applyFilters();
+}
+
+// ── Update single ─────────────────────────────────────────────────────────────
+async function updateProduct(id) {
+  const icon = document.getElementById('spin-' + id);
+  icon.classList.add('spin');
+  try {
+    const res  = await fetch('/update/' + id, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) { location.reload(); }
+    else { alert('Błąd: ' + (data.error || 'Nieznany błąd')); }
+  } catch (e) {
+    alert('Błąd połączenia: ' + e);
+  } finally {
+    icon.classList.remove('spin');
+  }
+}
+
+// ── Update all ────────────────────────────────────────────────────────────────
+async function updateAll() {
+  const btn = document.getElementById('btn-update-all');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Aktualizuję…';
+  try {
+    await fetch('/update-all', { method: 'POST' });
+    location.reload();
+  } catch (e) {
+    alert('Błąd: ' + e);
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Aktualizuj wszystkie';
+  }
+}
+
+// ── Delete ────────────────────────────────────────────────────────────────────
+async function deleteProduct(id, name) {
+  if (!confirm('Usunąć produkt "' + name + '"?')) return;
+  const res  = await fetch('/delete/' + id, { method: 'POST' });
+  const data = await res.json();
+  if (data.success) {
+    const row = document.getElementById('row-' + id);
+    row.style.transition = 'opacity .25s';
+    row.style.opacity = '0';
+    setTimeout(() => { row.remove(); applyFilters(); }, 250);
+  }
+}
+</script>
+{% endblock %}
