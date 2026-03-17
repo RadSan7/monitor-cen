@@ -85,21 +85,27 @@
             {% endif %}
           </td>
 
-          {# Name + store + dropship #}
-          <td class="product-name-cell" data-id="{{ p.id }}" data-original="{{ p.name }}" style="cursor:pointer; overflow:hidden">
-            <div class="fw-semibold lh-sm" style="font-size:.9rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">
-              <span class="product-display-name" title="Kliknij aby edytować">{{ p.name }}</span>
-              <a href="{{ p.url }}" target="_blank" rel="noopener" class="ms-2" title="Otwórz w sklepie" onclick="event.stopPropagation()">
-                <i class="bi bi-box-arrow-up-right text-primary" style="font-size:.85rem"></i>
+          {# Name + store #}
+          <td class="product-name-cell" data-id="{{ p.id }}" data-original="{{ p.name }}" style="overflow:hidden">
+            <div class="fw-semibold lh-sm" style="font-size:.9rem; display:flex; align-items:center; gap:0.5rem">
+              <a href="/product/{{ p.id }}" class="text-decoration-none text-dark hover-link" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1">
+                <span class="product-display-name" title="Kliknij aby edytować">{{ p.name }}</span>
               </a>
+              <button class="btn btn-sm btn-outline-secondary edit-name-btn"
+                      data-id="{{ p.id }}"
+                      title="Zmień nazwę"
+                      style="padding:0.15rem 0.35rem; border:1px solid #ccc; flex-shrink:0; border-radius:3px"
+                      onclick="event.stopPropagation()">
+                <i class="bi bi-pencil" style="font-size:.75rem"></i>
+              </button>
             </div>
             <div class="d-flex align-items-center gap-2 mt-1 flex-wrap">
-              <span class="badge bg-secondary">{{ p.store }}</span>
-              {% if p.is_dropship %}
-              <span class="badge bg-info dropship-badge">
-                <i class="bi bi-rocket-fill me-1"></i>Dropship
-              </span>
-              {% endif %}
+              <a href="{{ p.url }}" target="_blank" rel="noopener"
+                 class="badge bg-secondary text-decoration-none"
+                 title="Otwórz w sklepie"
+                 onclick="event.stopPropagation()">
+                {{ p.store }}&nbsp;<i class="bi bi-box-arrow-up-right" style="font-size:.7rem"></i>
+              </a>
             </div>
           </td>
 
@@ -184,11 +190,6 @@
                       onclick="updateProduct({{ p.id }})" title="Aktualizuj cenę">
                 <i class="bi bi-arrow-clockwise" id="spin-{{ p.id }}"></i>
               </button>
-              {# History #}
-              <a href="/product/{{ p.id }}"
-                 class="btn btn-outline-secondary" title="Historia cen">
-                <i class="bi bi-graph-up"></i>
-              </a>
               {# Delete #}
               <button class="btn btn-outline-danger delete-btn"
                       data-id="{{ p.id }}"
@@ -256,10 +257,13 @@ function applyDisplayNames() {
   });
 }
 
-// ── Editable product name ─────────────────────────────────────────────────────
+// ── Editable product name (click pencil button) ────────────────────────────────
 document.addEventListener('click', function(e) {
-  const cell = e.target.closest('.product-name-cell');
-  if (!cell || cell.querySelector('input')) return;
+  const btn = e.target.closest('.edit-name-btn');
+  if (!btn) return;
+
+  const cell = btn.closest('.product-name-cell');
+  if (cell.querySelector('input')) return;
 
   const productId = cell.dataset.id;
   const displayElem = cell.querySelector('.product-display-name');

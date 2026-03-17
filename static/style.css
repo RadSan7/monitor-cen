@@ -210,7 +210,42 @@ body.dark-mode .table-hover > tbody > tr:hover > * {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Edit name button with visible borders */
+.edit-name-btn {
+  padding: 0.15rem 0.35rem !important;
+  border: 1px solid #999 !important;
+  border-radius: 3px !important;
+  flex-shrink: 0;
+  min-width: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff !important;
+  color: #666 !important;
+  transition: all 0.2s;
+}
+
+.edit-name-btn:hover {
+  border-color: #333 !important;
+  color: #000 !important;
+  background: #f5f5f5 !important;
+}
+
+body.dark-mode .edit-name-btn {
+  border-color: #555 !important;
+  color: #aaa !important;
+  background: #2d3052 !important;
+}
+
+body.dark-mode .edit-name-btn:hover {
+  border-color: #888 !important;
+  color: #e2e8f0 !important;
+  background: #3d4175 !important;
 }
 
 /* Subtle hover hint on sale-price cells */
