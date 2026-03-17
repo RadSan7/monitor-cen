@@ -135,9 +135,15 @@
           </td>
 
           {# Min historical #}
-          <td class="text-end" style="font-size:.85rem">
+          <td class="text-end min-price-cell"
+              id="mp-{{ p.id }}"
+              data-id="{{ p.id }}"
+              data-currency="{{ p.currency }}"
+              style="font-size:.85rem; cursor:pointer"
+              title="Kliknij aby edytować">
             {% if p.min_price is not none %}
-              <span class="text-success fw-bold">
+              {% set is_min_current = p.current_price is not none and p.current_price == p.min_price %}
+              <span class="fw-bold {% if is_min_current %}text-success{% else %}text-dark{% endif %}">
                 {{ "%.2f"|format(p.min_price) }}&nbsp;<small>{{ p.currency }}</small>
               </span>
             {% else %}<span class="text-muted">—</span>{% endif %}
@@ -150,7 +156,7 @@
               style="font-size:.85rem; cursor:pointer"
               title="Kliknij aby edytować">
             {% if p.sale_price is not none %}
-              <span class="fw-semibold text-warning">
+              <span class="fw-semibold text-dark">
                 {{ "%.2f"|format(p.sale_price) }}&nbsp;<small class="text-muted">PLN</small>
               </span>
             {% else %}
@@ -172,7 +178,7 @@
                       id="ds-btn-{{ p.id }}"
                       onclick="toggleDropship({{ p.id }})"
                       title="{% if p.is_dropship %}Oznaczony jako Dropship{% else %}Oznacz jako Dropship{% endif %}">
-                <i class="bi bi-truck"></i>
+                <i class="bi bi-rocket-fill"></i>
               </button>
               {# Update #}
               <button class="btn btn-outline-primary"
@@ -404,6 +410,67 @@ document.addEventListener('click', function(e) {
       });
       const data = await res.json();
       if (data.success) render(data.sale_price);
+    } catch { render(current || null); }
+  };
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter')  { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { input.removeEventListener('blur', save); render(current || null); }
+  });
+  input.addEventListener('blur', save, { once: true });
+});
+
+// ── Inline min price edit ────────────────────────────────────────────────────
+document.addEventListener('click', function(e) {
+  const cell = e.target.closest('.min-price-cell');
+  if (!cell || cell.querySelector('input')) return;
+
+  const id      = cell.dataset.id;
+  const current = cell.querySelector('.fw-bold')?.textContent.trim().split('\u00a0')[0] || '';
+
+  const input = document.createElement('input');
+  input.type      = 'number';
+  input.step      = '0.01';
+  input.min       = '0';
+  input.value     = current;
+  input.className = 'form-control form-control-sm text-end';
+  input.style.cssText = 'width:90px;display:inline-block';
+  cell.innerHTML  = '';
+  cell.appendChild(input);
+  input.focus();
+  input.select();
+
+  // Get currency from the cell (was in the small tag)
+  const currency = cell.dataset.currency || 'EUR';
+
+  const render = (mp) => {
+    // Check if current price == min price by getting current price from the row
+    const row = document.getElementById('row-' + id);
+    const priceSpan = row?.querySelector('[id^="price-"]');
+    const currentPrice = priceSpan ? parseFloat(priceSpan.textContent.trim().split('\u00a0')[0]) : null;
+    const isMinCurrent = currentPrice !== null && currentPrice === parseFloat(mp);
+
+    if (mp !== null && mp !== undefined && mp !== '') {
+      const colorClass = isMinCurrent ? 'text-success' : 'text-dark';
+      cell.innerHTML = '<span class="fw-bold ' + colorClass + '">' +
+        Number(mp).toFixed(2) + '\u00a0<small>' + currency + '</small></span>';
+    } else {
+      cell.innerHTML = '<span class="text-muted">—</span>';
+    }
+  };
+
+  const save = async () => {
+    const val  = input.value.trim();
+    const body = new FormData();
+    if (val) body.append('min_price', val);
+
+    try {
+      const res  = await fetch('/min-price/' + id, {
+        method: 'POST', body,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      const data = await res.json();
+      if (data.success) render(data.min_price);
     } catch { render(current || null); }
   };
 

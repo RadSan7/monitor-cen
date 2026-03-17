@@ -211,6 +211,9 @@ body.dark-mode .table thead {
 body.dark-mode .text-dark  { color: #e2e8f0 !important; }
 body.dark-mode .text-muted { color: #94a3b8 !important; }
 
+/* Table text colors in dark mode */
+body.dark-mode .table td .text-dark { color: #e2e8f0 !important; }
+
 body.dark-mode .badge.bg-secondary {
   background: #2d3052 !important;
   color: #a0aec0 !important;
