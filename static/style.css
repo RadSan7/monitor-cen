@@ -31,10 +31,29 @@
   animation: spin 0.8s linear infinite;
 }
 
-/* ── Table: compact rows ─────────────────────────────────────── */
+/* ── Table: compact rows with fixed height ──────────────────── */
 .table-sm > :not(caption) > * > * {
   padding-top: 0.4rem;
   padding-bottom: 0.4rem;
+}
+
+.table tbody tr {
+  height: 50px;
+}
+
+.table tbody td {
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+  vertical-align: middle;
+  overflow: hidden;
+}
+
+/* Truncate product name with ellipsis */
+.table tbody td:nth-child(2) div.fw-semibold {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
 }
 
 .table thead th {

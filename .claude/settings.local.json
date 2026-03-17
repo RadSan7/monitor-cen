@@ -8,7 +8,10 @@
       "Bash(.venv/bin/pip install:*)",
       "Bash(.venv/bin/python -c \":*)",
       "mcp__Claude_Preview__preview_start",
-      "Bash(curl -s http://127.0.0.1:5000)"
+      "Bash(curl -s http://127.0.0.1:5000)",
+      "Bash(chmod +x \"/Users/a12345678/Pliki/Claude/Monitor cen/start-monitor.command\")",
+      "Bash(cp \"/Users/a12345678/Pliki/Claude/Monitor cen/start-monitor.command\" \"/Users/a12345678/Desktop/Monitor Cen.command\")",
+      "Bash(chmod +x \"/Users/a12345678/Desktop/Monitor Cen.command\")"
     ]
   }
 }
