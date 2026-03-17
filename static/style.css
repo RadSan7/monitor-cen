@@ -200,6 +200,19 @@ body.dark-mode .table-hover > tbody > tr:hover > * {
   background-color: #252742 !important;
 }
 
+/* Product name cell styling */
+.product-name-cell {
+  max-width: 200px;
+  overflow: hidden;
+}
+
+.product-name-cell .fw-semibold {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
 /* Subtle hover hint on sale-price cells */
 .sale-price-cell:hover { opacity: .8; }
 .sale-price-cell .add-hint { font-size: .75rem; opacity: .5; }

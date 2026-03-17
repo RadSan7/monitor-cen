@@ -56,7 +56,7 @@
       <thead class="table-dark">
         <tr>
           <th style="width:60px"></th>
-          <th>Produkt</th>
+          <th style="width:200px">Produkt</th>
           <th class="text-end" style="width:120px">Cena</th>
           <th class="text-end" style="width:80px">Zmiana</th>
           <th class="text-end" style="width:120px">Min. hist.</th>
@@ -86,11 +86,10 @@
           </td>
 
           {# Name + store + dropship #}
-          <td>
-            <div class="fw-semibold lh-sm" style="font-size:.9rem">
-              <a href="/product/{{ p.id }}"
-                 class="text-decoration-none text-dark hover-link">{{ p.name }}</a>
-              <a href="{{ p.url }}" target="_blank" rel="noopener" class="ms-2" title="Otwórz w sklepie">
+          <td class="product-name-cell" data-id="{{ p.id }}" data-original="{{ p.name }}" style="cursor:pointer; overflow:hidden">
+            <div class="fw-semibold lh-sm" style="font-size:.9rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">
+              <span class="product-display-name" title="Kliknij aby edytować">{{ p.name }}</span>
+              <a href="{{ p.url }}" target="_blank" rel="noopener" class="ms-2" title="Otwórz w sklepie" onclick="event.stopPropagation()">
                 <i class="bi bi-box-arrow-up-right text-primary" style="font-size:.85rem"></i>
               </a>
             </div>
@@ -98,7 +97,7 @@
               <span class="badge bg-secondary">{{ p.store }}</span>
               {% if p.is_dropship %}
               <span class="badge bg-info dropship-badge">
-                <i class="bi bi-truck me-1"></i>Dropship
+                <i class="bi bi-rocket-fill me-1"></i>Dropship
               </span>
               {% endif %}
             </div>
@@ -217,6 +216,90 @@
 
 {% block scripts %}
 <script>
+// ── Clean product names ───────────────────────────────────────────────────────
+function cleanProductName(name) {
+  const phrasesToRemove = [
+    'Enceinte colonne',
+    'Pack d\'enceintes',
+    'Home-Cinema'
+  ];
+
+  let cleaned = name;
+  phrasesToRemove.forEach(phrase => {
+    cleaned = cleaned.replace(new RegExp(phrase, 'gi'), '').trim();
+  });
+
+  // Remove extra spaces
+  cleaned = cleaned.replace(/\s+/g, ' ');
+
+  return cleaned;
+}
+
+// ── Apply display names on page load ──────────────────────────────────────────
+function applyDisplayNames() {
+  document.querySelectorAll('.product-display-name').forEach(elem => {
+    const cell = elem.closest('.product-name-cell');
+    const productId = cell.dataset.id;
+    const original = cell.dataset.original;
+
+    // First try to get custom display name from localStorage
+    const storedName = localStorage.getItem(`product_display_name_${productId}`);
+    if (storedName) {
+      elem.textContent = storedName;
+    } else {
+      // Otherwise use cleaned name
+      const cleaned = cleanProductName(original);
+      elem.textContent = cleaned;
+      // Store the cleaned name
+      localStorage.setItem(`product_display_name_${productId}`, cleaned);
+    }
+  });
+}
+
+// ── Editable product name ─────────────────────────────────────────────────────
+document.addEventListener('click', function(e) {
+  const cell = e.target.closest('.product-name-cell');
+  if (!cell || cell.querySelector('input')) return;
+
+  const productId = cell.dataset.id;
+  const displayElem = cell.querySelector('.product-display-name');
+  const current = displayElem.textContent.trim();
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = current;
+  input.className = 'form-control form-control-sm';
+  input.style.cssText = 'width:100%; margin-bottom:0.25rem';
+
+  displayElem.replaceWith(input);
+  input.focus();
+  input.select();
+
+  const save = () => {
+    const newName = input.value.trim() || current;
+    localStorage.setItem(`product_display_name_${productId}`, newName);
+
+    const span = document.createElement('span');
+    span.className = 'product-display-name';
+    span.title = 'Kliknij aby edytować';
+    span.textContent = newName;
+
+    input.replaceWith(span);
+  };
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') {
+      const span = document.createElement('span');
+      span.className = 'product-display-name';
+      span.title = 'Kliknij aby edytować';
+      span.textContent = current;
+      input.replaceWith(span);
+    }
+  });
+  input.addEventListener('blur', save, { once: true });
+});
+
 // ── Filter state ──────────────────────────────────────────────────────────────
 const activeFilters = new Set();
 
@@ -284,7 +367,7 @@ async function toggleDropship(id) {
     const badgeDiv = row.querySelector('.d-flex.align-items-center');
     const badge = document.createElement('span');
     badge.className = 'badge bg-info dropship-badge';
-    badge.innerHTML = '<i class="bi bi-truck me-1"></i>Dropship';
+    badge.innerHTML = '<i class="bi bi-rocket-fill me-1"></i>Dropship';
     badgeDiv.appendChild(badge);
   } else if (!isNow && badgeEl) {
     badgeEl.remove();
@@ -480,5 +563,14 @@ document.addEventListener('click', function(e) {
   });
   input.addEventListener('blur', save, { once: true });
 });
+
+// ── Initialize display names on page load ────────────────────────────────────
+document.addEventListener('DOMContentLoaded', applyDisplayNames);
+// Also apply on page load if DOM is already ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', applyDisplayNames);
+} else {
+  applyDisplayNames();
+}
 </script>
 {% endblock %}
