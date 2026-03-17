@@ -23,6 +23,8 @@
     </div>
   </nav>
 
+  {% block topbar %}{% endblock %}
+
   <div class="container-xl py-4 px-3">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% for category, message in messages %}

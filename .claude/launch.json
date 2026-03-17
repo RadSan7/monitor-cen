@@ -5,7 +5,8 @@
       "name": "Monitor Cen",
       "runtimeExecutable": "/Users/a12345678/Pliki/Claude/Monitor cen/.venv/bin/python",
       "runtimeArgs": ["app.py"],
-      "port": 5000
+      "port": 5000,
+      "autoPort": true
     }
   ]
 }

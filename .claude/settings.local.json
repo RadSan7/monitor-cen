@@ -6,7 +6,8 @@
       "Bash(curl -s -L --max-time 10 \"https://web.archive.org/web/*/homecinesolutions.fr\")",
       "WebFetch(domain:www.fnacpro.com)",
       "Bash(.venv/bin/pip install:*)",
-      "Bash(.venv/bin/python -c \":*)"
+      "Bash(.venv/bin/python -c \":*)",
+      "mcp__Claude_Preview__preview_start"
     ]
   }
 }

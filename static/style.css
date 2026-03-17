@@ -67,3 +67,44 @@
   box-shadow: none;
   border-color: #dee2e6;
 }
+
+/* ── Topbar (sticky search/filter bar) ───────────────────────── */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  padding: 0.6rem 0;
+}
+
+.topbar .input-group-text {
+  background: #f3f4f6;
+  border-color: #e5e7eb;
+  border-right: none;
+}
+
+.topbar .form-control {
+  background: #f3f4f6;
+  border-color: #e5e7eb;
+  border-left: none;
+  padding: 0.38rem 0.7rem;
+  font-size: 0.875rem;
+}
+
+.topbar .form-control:focus {
+  background: #fff;
+  border-color: #6b7280;
+  box-shadow: none;
+}
+
+.topbar .btn {
+  font-size: 0.8125rem;
+  padding: 0.38rem 0.75rem;
+}
+
+.topbar #count-label {
+  font-size: 0.8125rem;
+  color: #6b7280;
+}
