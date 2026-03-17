@@ -19,6 +19,8 @@ def _migrate(conn):
         conn.execute("ALTER TABLE products ADD COLUMN is_dropship INTEGER DEFAULT 0")
     if 'sale_price' not in cols:
         conn.execute("ALTER TABLE products ADD COLUMN sale_price REAL")
+    if 'brand' not in cols:
+        conn.execute("ALTER TABLE products ADD COLUMN brand TEXT DEFAULT ''")
 
 
 def init_db():
@@ -64,13 +66,13 @@ def get_product(product_id):
         ).fetchone()
 
 
-def add_product(name, url, store, thumbnail_url, price, currency):
+def add_product(name, url, store, thumbnail_url, price, currency, brand=''):
     with get_db() as conn:
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         conn.execute('''
-            INSERT INTO products (name, url, store, thumbnail_url, current_price, min_price, currency, last_updated)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (name, url, store, thumbnail_url, price, price, currency, now))
+            INSERT INTO products (name, url, store, thumbnail_url, current_price, min_price, currency, brand, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (name, url, store, thumbnail_url, price, price, currency, brand, now))
         product_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
         conn.execute(
             'INSERT INTO price_history (product_id, price, checked_at) VALUES (?, ?, ?)',

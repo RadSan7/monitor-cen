@@ -21,6 +21,11 @@
         <i class="bi bi-arrow-left-right me-1"></i>Zmiana ceny
       </button>
 
+      <button id="btn-filter-atlow" class="btn btn-sm btn-outline-secondary"
+              onclick="toggleFilter('atlow')" title="Produkty na historycznym minimum">
+        <i class="bi bi-graph-down me-1"></i>Hist. min
+      </button>
+
       <div class="ms-auto d-flex align-items-center gap-2">
         <span class="text-muted small fw-semibold" id="count-label">
           {{ products | length }} produkt{{ 'y' if products|length in [2,3,4] else ('ów' if products|length != 1 else '') }}
@@ -33,6 +38,39 @@
       </div>
 
     </div>
+
+    {# ── Second row: store / brand / price filters ── #}
+    {% if products %}
+    <div class="d-flex flex-wrap align-items-center gap-2 mt-2 pt-2" style="border-top:1px solid rgba(0,0,0,.07)">
+
+      {% set stores = [] %}
+      {% for p in products %}{% if p.store not in stores %}{% set _ = stores.append(p.store) %}{% endif %}{% endfor %}
+      {% for s in stores | sort %}
+      <button class="btn btn-sm btn-outline-secondary btn-filter-store"
+              data-store="{{ s | lower }}"
+              onclick="toggleStoreFilter(this)">{{ s }}</button>
+      {% endfor %}
+
+      {% set brands = [] %}
+      {% for p in products %}{% if p.brand and p.brand not in brands %}{% set _ = brands.append(p.brand) %}{% endif %}{% endfor %}
+      {% if brands %}
+      <select id="brand-select" class="form-select form-select-sm" style="max-width:150px" onchange="applyFilters()">
+        <option value="">Wszystkie marki</option>
+        {% for b in brands | sort %}
+        <option value="{{ b | lower }}">{{ b }}</option>
+        {% endfor %}
+      </select>
+      {% endif %}
+
+      <input id="price-min" type="number" min="0" step="10" placeholder="Min EUR"
+             class="form-control form-control-sm" style="max-width:90px" oninput="applyFilters()">
+      <span class="text-muted small">—</span>
+      <input id="price-max" type="number" min="0" step="10" placeholder="Max EUR"
+             class="form-control form-control-sm" style="max-width:90px" oninput="applyFilters()">
+
+    </div>
+    {% endif %}
+
   </div>
 </div>
 {% endblock %}
@@ -70,8 +108,11 @@
         <tr id="row-{{ p.id }}"
             data-name="{{ p.name | lower }}"
             data-store="{{ p.store | lower }}"
+            data-brand="{{ (p.brand or '') | lower }}"
             data-dropship="{{ '1' if p.is_dropship else '0' }}"
             data-changed="{{ '1' if p.previous_price is not none and p.current_price != p.previous_price else '0' }}"
+            data-atlow="{{ '1' if p.current_price is not none and p.min_price is not none and p.current_price == p.min_price else '0' }}"
+            data-price="{{ p.current_price or 0 }}"
             class="fade-in">
 
           {# Thumbnail #}
@@ -86,7 +127,7 @@
           </td>
 
           {# Name + store #}
-          <td class="product-name-cell" data-id="{{ p.id }}" data-original="{{ p.name }}" style="overflow:hidden">
+          <td class="product-name-cell" data-id="{{ p.id }}" data-original="{{ p.name }}" data-brand="{{ p.brand or '' }}" style="overflow:hidden">
             <div class="fw-semibold lh-sm" style="font-size:.9rem; display:flex; align-items:center; gap:0.5rem">
               <a href="/product/{{ p.id }}" class="text-decoration-none text-dark hover-link" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1">
                 <span class="product-display-name" title="Kliknij aby edytować">{{ p.name }}</span>
@@ -94,8 +135,7 @@
               <button class="btn btn-sm btn-outline-secondary edit-name-btn"
                       data-id="{{ p.id }}"
                       title="Zmień nazwę"
-                      style="padding:0.15rem 0.35rem; border:1px solid #ccc; flex-shrink:0; border-radius:3px"
-                      onclick="event.stopPropagation()">
+                      style="padding:0.15rem 0.35rem; border:1px solid #ccc; flex-shrink:0; border-radius:3px">
                 <i class="bi bi-pencil" style="font-size:.75rem"></i>
               </button>
             </div>
@@ -218,7 +258,7 @@
 {% block scripts %}
 <script>
 // ── Clean product names ───────────────────────────────────────────────────────
-function cleanProductName(name) {
+function cleanProductName(name, brand) {
   const phrasesToRemove = [
     'Enceinte colonne',
     'Pack d\'enceintes',
@@ -229,9 +269,12 @@ function cleanProductName(name) {
   phrasesToRemove.forEach(phrase => {
     cleaned = cleaned.replace(new RegExp(phrase, 'gi'), '').trim();
   });
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
 
-  // Remove extra spaces
-  cleaned = cleaned.replace(/\s+/g, ' ');
+  // Prepend brand if not already at the start
+  if (brand && !cleaned.toLowerCase().startsWith(brand.toLowerCase())) {
+    cleaned = brand + ' ' + cleaned;
+  }
 
   return cleaned;
 }
@@ -241,17 +284,15 @@ function applyDisplayNames() {
   document.querySelectorAll('.product-display-name').forEach(elem => {
     const cell = elem.closest('.product-name-cell');
     const productId = cell.dataset.id;
-    const original = cell.dataset.original;
+    const original  = cell.dataset.original;
+    const brand     = cell.dataset.brand || '';
 
-    // First try to get custom display name from localStorage
     const storedName = localStorage.getItem(`product_display_name_${productId}`);
     if (storedName) {
       elem.textContent = storedName;
     } else {
-      // Otherwise use cleaned name
-      const cleaned = cleanProductName(original);
+      const cleaned = cleanProductName(original, brand);
       elem.textContent = cleaned;
-      // Store the cleaned name
       localStorage.setItem(`product_display_name_${productId}`, cleaned);
     }
   });
@@ -305,38 +346,63 @@ document.addEventListener('click', function(e) {
 });
 
 // ── Filter state ──────────────────────────────────────────────────────────────
-const activeFilters = new Set();
+const activeFilters      = new Set();
+const activeStoreFilters = new Set();
 
 function toggleFilter(name) {
+  const colorMap = { dropship: 'btn-primary', changed: 'btn-warning', atlow: 'btn-success' };
   const btn = document.getElementById('btn-filter-' + name);
   if (activeFilters.has(name)) {
     activeFilters.delete(name);
-    btn.classList.remove('active', 'btn-primary', 'btn-warning');
+    btn.classList.remove('active', 'btn-primary', 'btn-warning', 'btn-success');
     btn.classList.add('btn-outline-secondary');
   } else {
     activeFilters.add(name);
     btn.classList.remove('btn-outline-secondary');
-    btn.classList.add('active', name === 'dropship' ? 'btn-primary' : 'btn-warning');
+    btn.classList.add('active', colorMap[name] || 'btn-secondary');
+  }
+  applyFilters();
+}
+
+function toggleStoreFilter(btn) {
+  const s = btn.dataset.store;
+  if (activeStoreFilters.has(s)) {
+    activeStoreFilters.delete(s);
+    btn.classList.remove('active');
+  } else {
+    activeStoreFilters.add(s);
+    btn.classList.add('active');
   }
   applyFilters();
 }
 
 function applyFilters() {
-  const query   = document.getElementById('search-input').value.toLowerCase().trim();
-  const rows    = document.querySelectorAll('#products-tbody tr');
-  let visible   = 0;
+  const query    = document.getElementById('search-input').value.toLowerCase().trim();
+  const rows     = document.querySelectorAll('#products-tbody tr');
+  const brandSel = document.getElementById('brand-select');
+  const pMinEl   = document.getElementById('price-min');
+  const pMaxEl   = document.getElementById('price-max');
+  const brandVal = brandSel ? brandSel.value : '';
+  const pMin     = parseFloat(pMinEl?.value) || 0;
+  const pMax     = parseFloat(pMaxEl?.value) || Infinity;
+  let visible    = 0;
 
   rows.forEach(row => {
     const name     = row.dataset.name  || '';
     const store    = row.dataset.store || '';
-    const dropship = row.dataset.dropship === '1';
-    const changed  = row.dataset.changed  === '1';
+    const brand    = row.dataset.brand || '';
+    const price    = parseFloat(row.dataset.price) || 0;
 
-    const matchSearch   = !query || name.includes(query) || store.includes(query);
-    const matchDropship = !activeFilters.has('dropship') || dropship;
-    const matchChanged  = !activeFilters.has('changed')  || changed;
+    let show = true;
+    if (query && !name.includes(query) && !store.includes(query) && !brand.includes(query)) show = false;
+    if (activeFilters.has('dropship') && row.dataset.dropship !== '1') show = false;
+    if (activeFilters.has('changed')  && row.dataset.changed  !== '1') show = false;
+    if (activeFilters.has('atlow')    && row.dataset.atlow    !== '1') show = false;
+    if (activeStoreFilters.size && !activeStoreFilters.has(store))      show = false;
+    if (brandVal && brand !== brandVal)                                  show = false;
+    if (price && pMin && price < pMin)                                   show = false;
+    if (price && pMax !== Infinity && price > pMax)                      show = false;
 
-    const show = matchSearch && matchDropship && matchChanged;
     row.classList.toggle('d-none', !show);
     if (show) visible++;
   });

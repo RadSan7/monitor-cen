@@ -68,6 +68,9 @@ def _extract_product(data: dict, url: str, store: str) -> dict:
     if store == 'HomeCine Solutions':
         price = round(price / 1.20, 2)
 
+    brand_data = data.get('brand', {})
+    brand = (brand_data.get('name', '') if isinstance(brand_data, dict) else '') or ''
+
     return {
         'name':          name,
         'url':           url,
@@ -75,6 +78,7 @@ def _extract_product(data: dict, url: str, store: str) -> dict:
         'thumbnail_url': thumbnail,
         'price':         price,
         'currency':      offers.get('priceCurrency', 'EUR'),
+        'brand':         brand,
     }
 
 

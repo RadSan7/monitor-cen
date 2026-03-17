@@ -65,6 +65,7 @@ def add_product():
                 thumbnail_url=request.form.get('thumbnail_url') or None,
                 price=float(request.form['price']),
                 currency=request.form['currency'],
+                brand=request.form.get('brand', ''),
             )
             _save_thumbnail(product_id, request.form.get('thumbnail_url'))
             flash('Produkt dodany pomyślnie!', 'success')
@@ -97,6 +98,7 @@ def add_bulk():
                 thumbnail_url=data['thumbnail_url'],
                 price=data['price'],
                 currency=data['currency'],
+                brand=data.get('brand', ''),
             )
             _save_thumbnail(product_id, data['thumbnail_url'])
             results.append({'url': url, 'success': True, 'data': data})

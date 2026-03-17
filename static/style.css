@@ -103,6 +103,18 @@ body.dark-mode .table-bordered-cols > :not(caption) > * > * {
   color: #000;
 }
 
+#btn-filter-atlow.active {
+  background-color: #198754;
+  border-color: #198754;
+  color: #fff;
+}
+
+.btn-filter-store.active {
+  background-color: #6c757d;
+  border-color: #6c757d;
+  color: #fff;
+}
+
 /* ── Search input: remove double border ──────────────────────── */
 .input-group .form-control:focus {
   box-shadow: none;
@@ -173,6 +185,16 @@ body.dark-mode .topbar .form-control::placeholder { color: #64748b; }
 body.dark-mode .topbar .btn-outline-secondary {
   border-color: #4a5080;
   color: #a0aec0;
+}
+
+body.dark-mode .topbar [style*="border-top"] {
+  border-top-color: #3d4175 !important;
+}
+
+body.dark-mode #brand-select {
+  background: #13152a;
+  border-color: #3d4175;
+  color: #e2e8f0;
 }
 
 body.dark-mode .card {
