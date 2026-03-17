@@ -8,6 +8,11 @@
   </a>
   <h5 class="mb-0 text-truncate">{{ product.name }}</h5>
 </div>
+<div class="mb-3">
+  <input type="text" class="form-control form-control-sm font-monospace text-muted"
+         value="{{ product.url }}" readonly onclick="this.select()"
+         title="Kliknij aby zaznaczyć URL">
+</div>
 
 <div class="row g-4">
 
@@ -46,13 +51,34 @@
             </span>
           </div>
 
-          <div class="list-group-item px-0 d-flex justify-content-between">
+          <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
             <span class="text-muted">Min. historyczna</span>
-            <strong class="text-success">
+            <span id="min-display-{{ product.id }}"
+                  class="text-success fw-bold editable-val"
+                  data-id="{{ product.id }}"
+                  data-field="min"
+                  data-value="{{ product.min_price if product.min_price is not none else '' }}"
+                  title="Kliknij aby edytować"
+                  style="cursor:pointer">
               {% if product.min_price is not none %}
                 {{ "%.2f"|format(product.min_price) }}&nbsp;{{ product.currency }}
-              {% else %}—{% endif %}
-            </strong>
+              {% else %}<span class="text-muted fst-italic">kliknij aby ustawić</span>{% endif %}
+            </span>
+          </div>
+
+          <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
+            <span class="text-muted">Cena w PL</span>
+            <span id="sp-display-{{ product.id }}"
+                  class="fw-semibold text-warning editable-val"
+                  data-id="{{ product.id }}"
+                  data-field="sale"
+                  data-value="{{ product.sale_price if product.sale_price is not none else '' }}"
+                  title="Kliknij aby edytować"
+                  style="cursor:pointer">
+              {% if product.sale_price is not none %}
+                {{ "%.2f"|format(product.sale_price) }}&nbsp;<small class="text-muted">PLN</small>
+              {% else %}<span class="text-muted fst-italic">kliknij aby ustawić</span>{% endif %}
+            </span>
           </div>
 
           <div class="list-group-item px-0 d-flex justify-content-between">
@@ -182,6 +208,54 @@ new Chart(document.getElementById('priceChart'), {
 {% endif %}
 
 <script>
+// ── Inline edit: min_price i sale_price ──────────────────────────────────────
+document.addEventListener('click', function(e) {
+  const span = e.target.closest('.editable-val');
+  if (!span || span.querySelector('input')) return;
+
+  const id    = span.dataset.id;
+  const field = span.dataset.field;          // 'min' or 'sale'
+  const cur   = span.dataset.value || '';
+  const curr  = field === 'sale' ? 'PLN' : {{ product.currency | tojson }};
+  const url   = field === 'sale' ? '/sale-price/' + id : '/min-price/' + id;
+  const param = field === 'sale' ? 'sale_price' : 'min_price';
+
+  const input = document.createElement('input');
+  input.type  = 'number'; input.step = '0.01'; input.min = '0';
+  input.value = cur;
+  input.className = 'form-control form-control-sm text-end';
+  input.style.cssText = 'width:100px;display:inline-block';
+  span.innerHTML = '';
+  span.appendChild(input);
+  input.focus(); input.select();
+
+  const render = (val) => {
+    span.dataset.value = val != null ? val : '';
+    if (val != null && val !== '') {
+      span.innerHTML = Number(val).toFixed(2) + '\u00a0<small class="text-muted">' + curr + '</small>';
+    } else {
+      span.innerHTML = '<span class="text-muted fst-italic">kliknij aby ustawić</span>';
+    }
+  };
+
+  const save = async () => {
+    const v = input.value.trim();
+    const body = new FormData();
+    if (v) body.append(param, v);
+    try {
+      const res  = await fetch(url, { method: 'POST', body, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const data = await res.json();
+      if (data.success) render(v || null);
+    } catch { render(cur || null); }
+  };
+
+  input.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter')  { ev.preventDefault(); input.blur(); }
+    if (ev.key === 'Escape') { input.removeEventListener('blur', save); render(cur || null); }
+  });
+  input.addEventListener('blur', save, { once: true });
+});
+
 async function updateNow(id) {
   const icon = document.getElementById('spin-' + id);
   icon.classList.add('spin');

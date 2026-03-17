@@ -17,6 +17,8 @@ def _migrate(conn):
     cols = {r[1] for r in conn.execute("PRAGMA table_info(products)")}
     if 'is_dropship' not in cols:
         conn.execute("ALTER TABLE products ADD COLUMN is_dropship INTEGER DEFAULT 0")
+    if 'sale_price' not in cols:
+        conn.execute("ALTER TABLE products ADD COLUMN sale_price REAL")
 
 
 def init_db():
@@ -117,6 +119,18 @@ def update_thumbnail(product_id, local_path):
     with get_db() as conn:
         conn.execute('UPDATE products SET thumbnail_url = ? WHERE id = ?',
                      (local_path, product_id))
+
+
+def update_sale_price(product_id, sale_price):
+    with get_db() as conn:
+        conn.execute('UPDATE products SET sale_price = ? WHERE id = ?',
+                     (sale_price, product_id))
+
+
+def update_min_price(product_id, min_price):
+    with get_db() as conn:
+        conn.execute('UPDATE products SET min_price = ? WHERE id = ?',
+                     (min_price, product_id))
 
 
 def delete_product(product_id):

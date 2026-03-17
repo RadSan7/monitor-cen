@@ -5,16 +5,12 @@
   <div class="container-xl px-3">
     <div class="d-flex flex-wrap align-items-center gap-2">
 
-      {# Search #}
       <div class="input-group input-group-sm" style="max-width:280px">
-        <span class="input-group-text bg-white border-end-0">
-          <i class="bi bi-search text-muted"></i>
-        </span>
+        <span class="input-group-text"><i class="bi bi-search text-muted"></i></span>
         <input id="search-input" type="text" class="form-control border-start-0 ps-0"
                placeholder="Szukaj produktu…" oninput="applyFilters()">
       </div>
 
-      {# Filter buttons #}
       <button id="btn-filter-dropship" class="btn btn-sm btn-outline-secondary"
               onclick="toggleFilter('dropship')" title="Pokaż tylko dropship">
         <i class="bi bi-truck me-1"></i>Dropship
@@ -25,12 +21,10 @@
         <i class="bi bi-arrow-left-right me-1"></i>Zmiana ceny
       </button>
 
-      {# Spacer + stats + update #}
       <div class="ms-auto d-flex align-items-center gap-2">
         <span class="text-muted small fw-semibold" id="count-label">
           {{ products | length }} produkt{{ 'y' if products|length in [2,3,4] else ('ów' if products|length != 1 else '') }}
         </span>
-
         {% if products %}
         <button id="btn-update-all" class="btn btn-sm btn-primary" onclick="updateAll()">
           <i class="bi bi-arrow-clockwise me-2"></i>Aktualizuj
@@ -58,15 +52,16 @@
 {% else %}
 <div class="card shadow-sm">
   <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0">
+    <table class="table table-hover table-bordered-cols align-middle mb-0">
       <thead class="table-dark">
         <tr>
-          <th style="width:56px"></th>
+          <th style="width:60px"></th>
           <th>Produkt</th>
-          <th class="text-end">Cena</th>
-          <th class="text-end">Zmiana</th>
-          <th class="text-end">Min.</th>
-          <th class="text-center" style="width:110px">Aktualizacja</th>
+          <th class="text-end" style="width:120px">Cena</th>
+          <th class="text-end" style="width:80px">Zmiana</th>
+          <th class="text-end" style="width:120px">Min. hist.</th>
+          <th class="text-end" style="width:110px" title="Kliknij wartość aby edytować">Cena w PL</th>
+          <th class="text-center" style="width:115px">Aktualizacja</th>
           <th class="text-center" style="width:130px">Akcje</th>
         </tr>
       </thead>
@@ -93,10 +88,10 @@
           {# Name + store + dropship #}
           <td>
             <div class="fw-semibold lh-sm" style="font-size:.9rem">
-              <a href="{{ p.url }}" target="_blank" rel="noopener"
+              <a href="/product/{{ p.id }}"
                  class="text-decoration-none text-dark hover-link">{{ p.name }}</a>
-              <a href="{{ p.url }}" target="_blank" rel="noopener" class="ms-1">
-                <i class="bi bi-box-arrow-up-right text-muted" style="font-size:.65rem"></i>
+              <a href="{{ p.url }}" target="_blank" rel="noopener" class="ms-2" title="Otwórz w sklepie">
+                <i class="bi bi-box-arrow-up-right text-primary" style="font-size:.85rem"></i>
               </a>
             </div>
             <div class="d-flex align-items-center gap-2 mt-1 flex-wrap">
@@ -148,6 +143,21 @@
             {% else %}<span class="text-muted">—</span>{% endif %}
           </td>
 
+          {# Sale price (Cena w PL) — zawsze w PLN #}
+          <td class="text-end sale-price-cell"
+              id="sp-{{ p.id }}"
+              data-id="{{ p.id }}"
+              style="font-size:.85rem; cursor:pointer"
+              title="Kliknij aby edytować">
+            {% if p.sale_price is not none %}
+              <span class="fw-semibold text-warning">
+                {{ "%.2f"|format(p.sale_price) }}&nbsp;<small class="text-muted">PLN</small>
+              </span>
+            {% else %}
+              <span class="text-muted add-hint">+ dodaj</span>
+            {% endif %}
+          </td>
+
           {# Last updated #}
           <td class="text-center text-muted no-wrap" id="updated-{{ p.id }}"
               style="font-size:.75rem">
@@ -175,8 +185,8 @@
                 <i class="bi bi-graph-up"></i>
               </a>
               {# Delete #}
-              <button class="btn btn-outline-danger"
-                      onclick="deleteProduct({{ p.id }}, {{ p.name | tojson }})"
+              <button class="btn btn-outline-danger delete-btn"
+                      data-id="{{ p.id }}"
                       title="Usuń produkt">
                 <i class="bi bi-trash3"></i>
               </button>
@@ -190,10 +200,10 @@
   </div>
 </div>
 
-<p id="no-results" class="text-center text-muted py-5 d-none">
+<div id="no-results" class="text-center text-muted py-5 d-none">
   <i class="bi bi-search" style="font-size:2rem; opacity:0.5"></i>
   <p class="mt-3">Brak produktów spełniających kryteria filtrowania.</p>
-</p>
+</div>
 
 {% endif %}
 {% endblock %}
@@ -311,17 +321,97 @@ async function updateAll() {
   }
 }
 
-// ── Delete ────────────────────────────────────────────────────────────────────
-async function deleteProduct(id, name) {
-  if (!confirm('Usunąć produkt "' + name + '"?')) return;
-  const res  = await fetch('/delete/' + id, { method: 'POST' });
-  const data = await res.json();
-  if (data.success) {
-    const row = document.getElementById('row-' + id);
-    row.style.transition = 'opacity .25s';
-    row.style.opacity = '0';
-    setTimeout(() => { row.remove(); applyFilters(); }, 250);
+// ── Delete (dwuklik: 1. zaznacz, 2. usuń; 3 s na timeout) ────────────────────
+const _deleteTimers = {};
+document.addEventListener('click', async function(e) {
+  const btn = e.target.closest('.delete-btn');
+  if (!btn) return;
+  const id = btn.dataset.id;
+
+  // First click — highlight and wait for confirm
+  if (!btn.dataset.pending) {
+    btn.dataset.pending = '1';
+    btn.classList.remove('btn-outline-danger');
+    btn.classList.add('btn-danger');
+    btn.title = 'Kliknij ponownie aby potwierdzić';
+    _deleteTimers[id] = setTimeout(() => {
+      btn.dataset.pending = '';
+      btn.classList.remove('btn-danger');
+      btn.classList.add('btn-outline-danger');
+      btn.title = 'Usuń produkt';
+    }, 3000);
+    return;
   }
-}
+
+  // Second click — delete
+  clearTimeout(_deleteTimers[id]);
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  try {
+    const res  = await fetch('/delete/' + id, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      const row = document.getElementById('row-' + id);
+      row.style.transition = 'opacity .25s';
+      row.style.opacity = '0';
+      setTimeout(() => { row.remove(); applyFilters(); }, 250);
+    }
+  } catch (err) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-trash3"></i>';
+    btn.classList.remove('btn-danger');
+    btn.classList.add('btn-outline-danger');
+  }
+});
+
+// ── Inline sale price edit ────────────────────────────────────────────────────
+document.addEventListener('click', function(e) {
+  const cell = e.target.closest('.sale-price-cell');
+  if (!cell || cell.querySelector('input')) return;
+
+  const id      = cell.dataset.id;
+  const current = cell.querySelector('.fw-semibold')?.textContent.trim().split('\u00a0')[0] || '';
+
+  const input = document.createElement('input');
+  input.type      = 'number';
+  input.step      = '0.01';
+  input.min       = '0';
+  input.value     = current;
+  input.className = 'form-control form-control-sm text-end';
+  input.style.cssText = 'width:90px;display:inline-block';
+  cell.innerHTML  = '';
+  cell.appendChild(input);
+  input.focus();
+  input.select();
+
+  const render = (sp) => {
+    if (sp !== null && sp !== undefined) {
+      cell.innerHTML = '<span class="fw-semibold text-warning">' +
+        Number(sp).toFixed(2) + '\u00a0<small class="text-muted">PLN</small></span>';
+    } else {
+      cell.innerHTML = '<span class="text-muted add-hint">+ dodaj</span>';
+    }
+  };
+
+  const save = async () => {
+    const val  = input.value.trim();
+    const body = new FormData();
+    if (val) body.append('sale_price', val);
+    try {
+      const res  = await fetch('/sale-price/' + id, {
+        method: 'POST', body,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      const data = await res.json();
+      if (data.success) render(data.sale_price);
+    } catch { render(current || null); }
+  };
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter')  { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { input.removeEventListener('blur', save); render(current || null); }
+  });
+  input.addEventListener('blur', save, { once: true });
+});
 </script>
 {% endblock %}

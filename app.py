@@ -155,8 +155,33 @@ def toggle_dropship(product_id):
 
 @app.route('/delete/<int:product_id>', methods=['POST'])
 def delete_product(product_id):
+    thumb = os.path.join(THUMBS_DIR, f'{product_id}.jpg')
+    if os.path.exists(thumb):
+        os.remove(thumb)
     db.delete_product(product_id)
     return jsonify({'success': True})
+
+
+# ── Set sale price ────────────────────────────────────────────────────────────
+
+@app.route('/sale-price/<int:product_id>', methods=['POST'])
+def set_sale_price(product_id):
+    val = request.form.get('sale_price', '').strip()
+    price = float(val) if val else None
+    db.update_sale_price(product_id, price)
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': True, 'sale_price': price})
+    return redirect(url_for('product_detail', product_id=product_id))
+
+
+# ── Set min price (AJAX) ─────────────────────────────────────────────────────
+
+@app.route('/min-price/<int:product_id>', methods=['POST'])
+def set_min_price(product_id):
+    val = request.form.get('min_price', '').strip()
+    price = float(val) if val else None
+    db.update_min_price(product_id, price)
+    return jsonify({'success': True, 'min_price': price})
 
 
 # ── Product detail + price history ───────────────────────────────────────────

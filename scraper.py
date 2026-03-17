@@ -62,12 +62,18 @@ def _extract_product(data: dict, url: str, store: str) -> dict:
     if raw_price is None:
         raise ValueError("Brak ceny w danych produktu")
 
+    price = float(raw_price)
+
+    # HomeCine podaje ceny brutto (TTC) — przeliczamy na netto (HT) dzieląc przez 1.20
+    if store == 'HomeCine Solutions':
+        price = round(price / 1.20, 2)
+
     return {
         'name':          name,
         'url':           url,
         'store':         store,
         'thumbnail_url': thumbnail,
-        'price':         float(raw_price),
+        'price':         price,
         'currency':      offers.get('priceCurrency', 'EUR'),
     }
 
@@ -83,12 +89,16 @@ def _fetch_curl(url: str) -> str | None:
     return None
 
 
-def _fetch_playwright(url: str) -> str:
-    """Return HTML via Playwright (headless=False bypasses bot detection)."""
+def _playwright_once(url: str, headless: bool) -> str:
+    """Single Playwright fetch attempt."""
     with sync_playwright() as pw:
+        args = ['--disable-blink-features=AutomationControlled']
+        if not headless:
+            # Move window far off-screen so it doesn't appear on the desktop
+            args += ['--window-position=-10000,-10000', '--window-size=1280,800']
         browser = pw.chromium.launch(
-            headless=False,
-            args=['--disable-blink-features=AutomationControlled'],
+            headless=headless,
+            args=args,
         )
         context = browser.new_context(
             user_agent=_UA,
@@ -99,9 +109,19 @@ def _fetch_playwright(url: str) -> str:
             'Object.defineProperty(navigator, "webdriver", {get: () => undefined})'
         )
         page = context.new_page()
+        if not headless:
+            # Minimalizuj okno przez CDP żeby nie zakłócać pracy
+            try:
+                cdp = context.new_cdp_session(page)
+                info = cdp.send('Browser.getWindowForTarget')
+                cdp.send('Browser.setWindowBounds', {
+                    'windowId': info['windowId'],
+                    'bounds': {'windowState': 'minimized'},
+                })
+            except Exception:
+                pass
         try:
             page.goto(url, wait_until='domcontentloaded', timeout=30_000)
-            # Give JS a moment to inject any dynamic content
             page.wait_for_timeout(2_000)
         except PlaywrightTimeout:
             browser.close()
@@ -111,6 +131,15 @@ def _fetch_playwright(url: str) -> str:
         html = page.content()
         browser.close()
     return html
+
+
+def _fetch_playwright(url: str) -> str:
+    """Try headless first (no window); fall back to visible if bot-detected."""
+    html = _playwright_once(url, headless=True)
+    if 'application/ld+json' in html:
+        return html
+    # headless was detected — retry with visible browser
+    return _playwright_once(url, headless=False)
 
 
 def scrape_product(url: str) -> dict:
