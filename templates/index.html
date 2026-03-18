@@ -154,12 +154,20 @@
             </div>
           {% endif %}
         </div>
-        <div class="flex-grow-1 overflow-hidden">
-          <div class="product-name-cell" data-id="{{ p.id }}" data-original="{{ p.name }}" data-brand="{{ p.brand or '' }}">
+        <div class="flex-grow-1 overflow-hidden d-flex align-items-center gap-2">
+          <div class="product-name-cell flex-grow-1 overflow-hidden" data-id="{{ p.id }}" data-original="{{ p.name }}" data-brand="{{ p.brand or '' }}">
              <a href="/product/{{ p.id }}" class="text-decoration-none text-dark">
                 <h6 class="product-display-name fw-bold mb-1 text-truncate" title="{{ p.name }}">{{ p.name }}</h6>
              </a>
-             <div class="text-muted small">{{ p.brand or 'Bez marki' }}</div>
+             <div class="text-muted small grid-only">{{ p.brand or 'Bez marki' }}</div>
+             <a href="{{ p.url }}" target="_blank" rel="noopener"
+                class="list-only badge bg-secondary text-decoration-none mt-1">
+               {{ p.store }}&nbsp;<i class="bi bi-box-arrow-up-right" style="font-size:.65rem"></i>
+             </a>
+          </div>
+          <div class="list-only list-filter-indicators flex-shrink-0 d-flex gap-1">
+            {% if p.is_dropship %}<span class="badge bg-info list-dropship-badge"><i class="bi bi-rocket-fill me-1"></i>DS</span>{% endif %}
+            {% if p.is_favorite %}<span class="badge bg-danger list-fav-badge"><i class="bi bi-heart-fill"></i></span>{% endif %}
           </div>
         </div>
       </div>
@@ -437,16 +445,27 @@ async function toggleFavorite(id) {
     btn.innerHTML = `<i class="bi bi-heart${isNow ? '-fill' : ''} me-2"></i>${isNow ? 'Usuń z ulubionych' : 'Ulubione'}`;
   }
 
-  // Update/add favorite badge in the badge section
-  const badgeArea = row.querySelector('.d-flex.gap-2.flex-wrap');
+  // Update grid-mode badge
+  const badgeArea = row.querySelector('.badge-group');
   const favBadge  = row.querySelector('.favorite-badge');
   if (isNow && !favBadge) {
     const badge = document.createElement('span');
     badge.className = 'badge bg-danger favorite-badge';
     badge.innerHTML = '<i class="bi bi-heart-fill me-1"></i>';
-    badgeArea.appendChild(badge);
+    badgeArea?.appendChild(badge);
   } else if (!isNow && favBadge) {
     favBadge.remove();
+  }
+  // Update list-mode badge
+  const indicators = row.querySelector('.list-filter-indicators');
+  const listFavBadge = row.querySelector('.list-fav-badge');
+  if (isNow && !listFavBadge) {
+    const b = document.createElement('span');
+    b.className = 'badge bg-danger list-fav-badge';
+    b.innerHTML = '<i class="bi bi-heart-fill"></i>';
+    indicators?.appendChild(b);
+  } else if (!isNow && listFavBadge) {
+    listFavBadge.remove();
   }
 
   applyFilters();
@@ -463,15 +482,27 @@ async function toggleDropship(id) {
 
   row.dataset.dropship = isNow ? '1' : '0';
 
-  const badgeArea = row.querySelector('.d-flex.gap-2.flex-wrap');
+  // Update grid-mode badge
+  const badgeArea = row.querySelector('.badge-group');
   const badgeEl   = row.querySelector('.dropship-badge');
   if (isNow && !badgeEl) {
     const badge = document.createElement('span');
     badge.className = 'badge bg-info dropship-badge';
     badge.innerHTML = '<i class="bi bi-rocket-fill me-1"></i>Dropship';
-    badgeArea.appendChild(badge);
+    badgeArea?.appendChild(badge);
   } else if (!isNow && badgeEl) {
     badgeEl.remove();
+  }
+  // Update list-mode badge
+  const indicators = row.querySelector('.list-filter-indicators');
+  const listDsBadge = row.querySelector('.list-dropship-badge');
+  if (isNow && !listDsBadge) {
+    const b = document.createElement('span');
+    b.className = 'badge bg-info list-dropship-badge';
+    b.innerHTML = '<i class="bi bi-rocket-fill me-1"></i>DS';
+    indicators?.prepend(b);
+  } else if (!isNow && listDsBadge) {
+    listDsBadge.remove();
   }
 
   applyFilters();

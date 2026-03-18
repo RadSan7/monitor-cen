@@ -232,21 +232,25 @@ body.dark-mode .dropdown-divider {
     -webkit-backdrop-filter: none !important;
 }
 
-/* Badges section: move to end, show store + filter badges */
+/* Badges section: only dropdown remains on the right */
 #products-grid.list-view .card-badges {
     order: 5;
     margin-bottom: 0 !important;
     flex-shrink: 0;
     align-items: center;
-    gap: 0.4rem;
 }
 
 #products-grid.list-view .card-badges .badge-group {
-    display: flex !important;
-    flex-wrap: nowrap;
-    gap: 0.3rem;
-    align-items: center;
+    display: none !important;
 }
+
+/* list-only / grid-only visibility helpers */
+.list-only { display: none !important; }
+.grid-only  { display: block; }
+
+#products-grid.list-view .list-only         { display: inline-flex !important; }
+#products-grid.list-view .list-filter-indicators { display: flex !important; }
+#products-grid.list-view .grid-only         { display: none !important; }
 
 /* Thumbnail + name */
 #products-grid.list-view .card-content {
