@@ -33,3 +33,6 @@ Thumbs.db
 # Environment variables
 .env
 .env.local
+
+# Claude Code worktrees
+.claude/worktrees/
