@@ -19,6 +19,15 @@ SUPPORTED_STORES = {
     'homecinesolutions.fr': 'HomeCine Solutions',
 }
 
+_UNAVAILABLE_AVAILABILITY = {
+    'http://schema.org/OutOfStock',
+    'https://schema.org/OutOfStock',
+    'OutOfStock',
+    'http://schema.org/Discontinued',
+    'https://schema.org/Discontinued',
+    'Discontinued',
+}
+
 _UA = (
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
     'AppleWebKit/537.36 (KHTML, like Gecko) '
@@ -58,15 +67,16 @@ def _extract_product(data: dict, url: str, store: str) -> dict:
     if isinstance(offers, list):
         offers = offers[0] if offers else {}
 
+    availability = offers.get('availability', '')
     raw_price = offers.get('price')
-    if raw_price is None:
-        raise ValueError("Brak ceny w danych produktu")
 
-    price = float(raw_price)
-
-    # HomeCine podaje ceny brutto (TTC) — przeliczamy na netto (HT) dzieląc przez 1.20
-    if store == 'HomeCine Solutions':
-        price = round(price / 1.20, 2)
+    if availability in _UNAVAILABLE_AVAILABILITY or raw_price is None:
+        price = None
+    else:
+        price = float(raw_price)
+        # HomeCine podaje ceny brutto (TTC) — przeliczamy na netto (HT) dzieląc przez 1.20
+        if store == 'HomeCine Solutions':
+            price = round(price / 1.20, 2)
 
     brand_data = data.get('brand', {})
     brand = (brand_data.get('name', '') if isinstance(brand_data, dict) else '') or ''

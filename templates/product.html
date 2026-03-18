@@ -3,15 +3,16 @@
 
 {% block content %}
 <div class="d-flex align-items-center gap-2 mb-4">
-  <a href="/" class="btn btn-outline-secondary btn-sm">
+  <a href="/" class="btn btn-outline-secondary btn-sm flex-shrink-0">
     <i class="bi bi-arrow-left"></i>
   </a>
-  <h5 class="mb-0 text-truncate">{{ product.name }}</h5>
-</div>
-<div class="mb-3">
-  <input type="text" class="form-control form-control-sm font-monospace text-muted"
-         value="{{ product.url }}" readonly onclick="this.select()"
-         title="Kliknij aby zaznaczyć URL">
+  <h5 class="mb-0 text-truncate flex-grow-1">{{ product.name }}</h5>
+  <a href="{{ product.url }}" target="_blank" rel="noopener"
+     class="btn btn-sm btn-outline-secondary flex-shrink-0 d-flex align-items-center gap-1"
+     title="{{ product.url }}">
+    <span class="text-muted small font-monospace">{{ product.store }}</span>
+    <i class="bi bi-box-arrow-up-right" style="font-size:.75rem"></i>
+  </a>
 </div>
 
 <div class="row g-4">
@@ -29,10 +30,32 @@
         </div>
         {% endif %}
 
-        <h6 class="fw-semibold">{{ product.name }}</h6>
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <h6 class="fw-semibold mb-0 flex-grow-1"
+              id="prod-name-display"
+              data-id="{{ product.id }}"
+              data-original="{{ product.name }}"
+              data-brand="{{ product.brand or '' }}">{{ product.name }}</h6>
+          <button class="btn btn-outline-secondary edit-name-btn-detail flex-shrink-0"
+                  style="padding:0.15rem 0.35rem; border:1px solid #ccc; border-radius:3px"
+                  title="Zmień nazwę wyświetlaną">
+            <i class="bi bi-pencil" style="font-size:.75rem"></i>
+          </button>
+        </div>
         <span class="badge bg-secondary mb-3">{{ product.store }}</span>
 
         <div class="list-group list-group-flush small">
+          <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
+            <span class="text-muted">Marka</span>
+            <span id="brand-display-{{ product.id }}"
+                  class="fw-semibold brand-editable"
+                  data-id="{{ product.id }}"
+                  data-value="{{ product.brand or '' }}"
+                  title="Kliknij aby edytować"
+                  style="cursor:pointer">
+              {% if product.brand %}{{ product.brand }}{% else %}<span class="text-muted fst-italic">kliknij aby ustawić</span>{% endif %}
+            </span>
+          </div>
           <div class="list-group-item px-0 d-flex justify-content-between">
             <span class="text-muted">Cena aktualna</span>
             <strong>
@@ -69,7 +92,7 @@
           <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
             <span class="text-muted">Cena w PL</span>
             <span id="sp-display-{{ product.id }}"
-                  class="fw-semibold text-warning editable-val"
+                  class="fw-semibold text-dark editable-val"
                   data-id="{{ product.id }}"
                   data-field="sale"
                   data-value="{{ product.sale_price if product.sale_price is not none else '' }}"
@@ -252,6 +275,97 @@ document.addEventListener('click', function(e) {
   input.addEventListener('keydown', ev => {
     if (ev.key === 'Enter')  { ev.preventDefault(); input.blur(); }
     if (ev.key === 'Escape') { input.removeEventListener('blur', save); render(cur || null); }
+  });
+  input.addEventListener('blur', save, { once: true });
+});
+
+// ── Editable brand ───────────────────────────────────────────────────────────
+document.addEventListener('click', function(e) {
+  const span = e.target.closest('.brand-editable');
+  if (!span || span.querySelector('input')) return;
+
+  const id  = span.dataset.id;
+  const cur = span.dataset.value || '';
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = cur;
+  input.className = 'form-control form-control-sm text-end';
+  input.style.cssText = 'width:120px;display:inline-block';
+  span.innerHTML = '';
+  span.appendChild(input);
+  input.focus(); input.select();
+
+  const render = (val) => {
+    span.dataset.value = val;
+    span.innerHTML = val
+      ? '<span class="fw-semibold">' + val + '</span>'
+      : '<span class="text-muted fst-italic">kliknij aby ustawić</span>';
+    // also update data-brand on the name element so display name can reflect it
+    const nameEl = document.getElementById('prod-name-display');
+    if (nameEl) nameEl.dataset.brand = val;
+  };
+
+  const save = async () => {
+    const val = input.value.trim();
+    const body = new FormData();
+    body.append('brand', val);
+    try {
+      const res  = await fetch('/brand/' + id, { method: 'POST', body, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const data = await res.json();
+      if (data.success) render(data.brand);
+    } catch { render(cur); }
+  };
+
+  input.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter')  { ev.preventDefault(); input.blur(); }
+    if (ev.key === 'Escape') { input.removeEventListener('blur', save); render(cur); }
+  });
+  input.addEventListener('blur', save, { once: true });
+});
+
+// ── Editable display name ─────────────────────────────────────────────────────
+(function applyDetailDisplayName() {
+  const el = document.getElementById('prod-name-display');
+  if (!el) return;
+  const id    = el.dataset.id;
+  const brand = el.dataset.brand || '';
+  const key   = 'product_name_v3_' + id;
+  const stored = JSON.parse(localStorage.getItem(key) || 'null');
+  if (stored && stored.brand === brand) {
+    el.textContent = stored.name;
+  }
+})();
+
+document.addEventListener('click', function(e) {
+  const btn = e.target.closest('.edit-name-btn-detail');
+  if (!btn) return;
+
+  const el = document.getElementById('prod-name-display');
+  if (!el || el.querySelector('input')) return;
+
+  const id      = el.dataset.id;
+  const brand   = el.dataset.brand || '';
+  const current = el.textContent.trim();
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = current;
+  input.className = 'form-control form-control-sm';
+  input.style.cssText = 'width:100%';
+  el.innerHTML = '';
+  el.appendChild(input);
+  input.focus(); input.select();
+
+  const save = () => {
+    const newName = input.value.trim() || current;
+    localStorage.setItem('product_name_v3_' + id, JSON.stringify({ name: newName, brand }));
+    el.textContent = newName;
+  };
+
+  input.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter') { ev.preventDefault(); input.blur(); }
+    if (ev.key === 'Escape') { input.removeEventListener('blur', save); el.textContent = current; }
   });
   input.addEventListener('blur', save, { once: true });
 });

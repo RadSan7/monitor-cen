@@ -1,0 +1,41 @@
+# === Zależności i buildy (największe pożeracze tokenów) ===
+node_modules/
+venv/
+.env
+.env.*
+*.lock
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+dist/
+build/
+out/
+.next/
+target/
+__pycache__/
+*.pyc
+*.pyo
+
+# === Logi, dane, duże pliki ===
+*.log
+*.csv
+*.json.gz
+*.sql
+*.sqlite
+*.db
+data/
+backups/
+screenshots/
+downloads/
+
+# === Git i Claude sam ===
+.git/
+.claude/worktrees/
+.claude/settings.local.json
+
+# === Inne śmieci (dostosuj pod siebie) ===
+.DS_Store
+Thumbs.db
+*.tmp
+temp/
+tmp/

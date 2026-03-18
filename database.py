@@ -21,6 +21,8 @@ def _migrate(conn):
         conn.execute("ALTER TABLE products ADD COLUMN sale_price REAL")
     if 'brand' not in cols:
         conn.execute("ALTER TABLE products ADD COLUMN brand TEXT DEFAULT ''")
+    if 'is_favorite' not in cols:
+        conn.execute("ALTER TABLE products ADD COLUMN is_favorite INTEGER DEFAULT 0")
 
 
 def init_db():
@@ -81,7 +83,8 @@ def add_product(name, url, store, thumbnail_url, price, currency, brand=''):
     return product_id
 
 
-def update_price(product_id, new_price):
+def update_price(product_id, new_price, brand=None):
+    """Update product price. new_price=None means product is unavailable (keeps old price)."""
     with get_db() as conn:
         product = conn.execute(
             'SELECT * FROM products WHERE id = ?', (product_id,)
@@ -89,20 +92,56 @@ def update_price(product_id, new_price):
         if not product:
             return False
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        new_min = min(product['min_price'] or new_price, new_price)
-        conn.execute('''
-            UPDATE products
-            SET previous_price = current_price,
-                current_price  = ?,
-                min_price      = ?,
-                last_updated   = ?
-            WHERE id = ?
-        ''', (new_price, new_min, now, product_id))
-        conn.execute(
-            'INSERT INTO price_history (product_id, price, checked_at) VALUES (?, ?, ?)',
-            (product_id, new_price, now)
-        )
+        if new_price is None:
+            # Unavailable — update timestamp only (preserve current price)
+            if brand is not None:
+                conn.execute(
+                    'UPDATE products SET last_updated = ?, brand = ? WHERE id = ?',
+                    (now, brand, product_id)
+                )
+            else:
+                conn.execute(
+                    'UPDATE products SET last_updated = ? WHERE id = ?',
+                    (now, product_id)
+                )
+        else:
+            new_min = min(product['min_price'] or new_price, new_price)
+            if brand is not None:
+                conn.execute('''
+                    UPDATE products
+                    SET previous_price = current_price,
+                        current_price  = ?,
+                        min_price      = ?,
+                        last_updated   = ?,
+                        brand          = ?
+                    WHERE id = ?
+                ''', (new_price, new_min, now, brand, product_id))
+            else:
+                conn.execute('''
+                    UPDATE products
+                    SET previous_price = current_price,
+                        current_price  = ?,
+                        min_price      = ?,
+                        last_updated   = ?
+                    WHERE id = ?
+                ''', (new_price, new_min, now, product_id))
+            conn.execute(
+                'INSERT INTO price_history (product_id, price, checked_at) VALUES (?, ?, ?)',
+                (product_id, new_price, now)
+            )
     return True
+
+
+def toggle_favorite(product_id):
+    with get_db() as conn:
+        conn.execute(
+            'UPDATE products SET is_favorite = 1 - is_favorite WHERE id = ?',
+            (product_id,)
+        )
+        row = conn.execute(
+            'SELECT is_favorite FROM products WHERE id = ?', (product_id,)
+        ).fetchone()
+    return bool(row['is_favorite']) if row else False
 
 
 def toggle_dropship(product_id):
@@ -115,6 +154,11 @@ def toggle_dropship(product_id):
             'SELECT is_dropship FROM products WHERE id = ?', (product_id,)
         ).fetchone()
     return bool(row['is_dropship']) if row else False
+
+
+def update_brand_only(product_id, brand):
+    with get_db() as conn:
+        conn.execute('UPDATE products SET brand = ? WHERE id = ?', (brand, product_id))
 
 
 def update_thumbnail(product_id, local_path):

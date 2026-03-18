@@ -117,13 +117,21 @@ def update_product(product_id):
     product = db.get_product(product_id)
     if not product:
         return jsonify({'error': 'Produkt nie istnieje'}), 404
+    old_price = product['current_price']
     try:
         data = scraper.scrape_product(product['url'])
-        db.update_price(product_id, data['price'])
+        new_price = data['price']
+        db.update_price(product_id, new_price, brand=data.get('brand') or None)
+        price_changed = (
+            old_price is not None and new_price is not None and old_price != new_price
+        )
         return jsonify({
             'success': True,
-            'price': data['price'],
+            'price': new_price,
             'currency': data['currency'],
+            'old_price': old_price,
+            'price_changed': price_changed,
+            'unavailable': new_price is None,
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -138,11 +146,19 @@ def update_all():
     for p in products:
         try:
             data = scraper.scrape_product(p['url'])
-            db.update_price(p['id'], data['price'])
+            db.update_price(p['id'], data['price'], brand=data.get('brand') or None)
             results.append({'id': p['id'], 'success': True, 'price': data['price']})
         except Exception as e:
             results.append({'id': p['id'], 'success': False, 'error': str(e)})
     return jsonify(results)
+
+
+# ── Toggle favorite (AJAX) ───────────────────────────────────────────────────
+
+@app.route('/favorite/<int:product_id>', methods=['POST'])
+def toggle_favorite(product_id):
+    new_state = db.toggle_favorite(product_id)
+    return jsonify({'success': True, 'is_favorite': new_state})
 
 
 # ── Toggle dropship (AJAX) ───────────────────────────────────────────────────
@@ -162,6 +178,15 @@ def delete_product(product_id):
         os.remove(thumb)
     db.delete_product(product_id)
     return jsonify({'success': True})
+
+
+# ── Set brand (AJAX) ─────────────────────────────────────────────────────────
+
+@app.route('/brand/<int:product_id>', methods=['POST'])
+def set_brand(product_id):
+    brand = request.form.get('brand', '').strip()
+    db.update_brand_only(product_id, brand)
+    return jsonify({'success': True, 'brand': brand})
 
 
 # ── Set sale price ────────────────────────────────────────────────────────────
@@ -196,6 +221,26 @@ def product_detail(product_id):
         return redirect(url_for('index'))
     history = db.get_price_history(product_id)
     return render_template('product.html', product=product, history=history)
+
+
+# ── Backfill brands (one-time admin route) ────────────────────────────────────
+
+@app.route('/admin/backfill-brands', methods=['POST'])
+def backfill_brands():
+    products = db.get_all_products()
+    results = []
+    for p in products:
+        if p['brand']:
+            results.append({'id': p['id'], 'skipped': True})
+            continue
+        try:
+            data = scraper.scrape_product(p['url'])
+            if data.get('brand'):
+                db.update_brand_only(p['id'], data['brand'])
+            results.append({'id': p['id'], 'success': True, 'brand': data.get('brand', '')})
+        except Exception as e:
+            results.append({'id': p['id'], 'success': False, 'error': str(e)})
+    return jsonify(results)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
