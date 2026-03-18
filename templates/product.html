@@ -1,185 +1,162 @@
 {% extends "base.html" %}
-{% block title %}{{ product.name }} — Monitor Cen{% endblock %}
+{% block title %}{{ product.name }}{% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center gap-2 mb-4">
-  <a href="/" class="btn btn-outline-secondary btn-sm flex-shrink-0">
-    <i class="bi bi-arrow-left"></i>
-  </a>
-  <h5 class="mb-0 text-truncate flex-grow-1">{{ product.name }}</h5>
-  <a href="{{ product.url }}" target="_blank" rel="noopener"
-     class="btn btn-sm btn-outline-secondary flex-shrink-0 d-flex align-items-center gap-1"
-     title="{{ product.url }}">
-    <span class="text-muted small font-monospace">{{ product.store }}</span>
-    <i class="bi bi-box-arrow-up-right" style="font-size:.75rem"></i>
-  </a>
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div class="d-flex align-items-center gap-3">
+    <a href="/" class="btn btn-outline-secondary btn-sm rounded-pill">
+      <i class="bi bi-arrow-left"></i>
+    </a>
+    <h4 class="mb-0 fw-bold">{{ product.brand }}</h4>
+  </div>
+  <div class="text-muted small">
+    ID: #{{ product.id }}
+  </div>
 </div>
 
-<div class="row g-4">
-
-  {# ── Left column: product info ── #}
-  <div class="col-md-4">
-    <div class="card shadow-sm h-100">
-      <div class="card-body p-4">
-
-        {% if product.thumbnail_url %}
-        <div class="text-center mb-3">
-          <img src="{{ product.thumbnail_url }}" alt="{{ product.name }}"
-               style="max-height:180px;max-width:100%;object-fit:contain;
-                      background:#f8f9fa;border-radius:10px;padding:8px">
+<div class="row g-4 mb-5">
+  <!-- Top Summary Card: Image + Price -->
+  <div class="col-12">
+    <div class="card glass p-4 border-0">
+      <div class="row align-items-center g-4">
+        <div class="col-md-3 text-center">
+          {% if product.thumbnail_url %}
+            <img src="{{ product.thumbnail_url }}" alt="" class="img-fluid" style="max-height: 200px; filter: drop-shadow(0 10px 20px rgba(0,0,0,0.1));">
+          {% else %}
+             <div class="product-thumb-placeholder mx-auto" style="width: 150px; height: 150px;">
+                <i class="bi bi-image" style="font-size: 3rem;"></i>
+             </div>
+          {% endif %}
         </div>
-        {% endif %}
-
-        <div class="d-flex align-items-center gap-2 mb-1">
-          <h6 class="fw-semibold mb-0 flex-grow-1"
-              id="prod-name-display"
-              data-id="{{ product.id }}"
-              data-original="{{ product.name }}"
-              data-brand="{{ product.brand or '' }}">{{ product.name }}</h6>
-          <button class="btn btn-outline-secondary edit-name-btn-detail flex-shrink-0"
-                  style="padding:0.15rem 0.35rem; border:1px solid #ccc; border-radius:3px"
-                  title="Zmień nazwę wyświetlaną">
-            <i class="bi bi-pencil" style="font-size:.75rem"></i>
-          </button>
-        </div>
-        <span class="badge bg-secondary mb-3">{{ product.store }}</span>
-
-        <div class="list-group list-group-flush small">
-          <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
-            <span class="text-muted">Marka</span>
-            <span id="brand-display-{{ product.id }}"
-                  class="fw-semibold brand-editable"
-                  data-id="{{ product.id }}"
-                  data-value="{{ product.brand or '' }}"
-                  title="Kliknij aby edytować"
-                  style="cursor:pointer">
-              {% if product.brand %}{{ product.brand }}{% else %}<span class="text-muted fst-italic">kliknij aby ustawić</span>{% endif %}
-            </span>
-          </div>
-          <div class="list-group-item px-0 d-flex justify-content-between">
-            <span class="text-muted">Cena aktualna</span>
-            <strong>
-              {% if product.current_price is not none %}
-                {{ "%.2f"|format(product.current_price) }}&nbsp;{{ product.currency }}
-              {% else %}—{% endif %}
-            </strong>
-          </div>
-
-          <div class="list-group-item px-0 d-flex justify-content-between">
-            <span class="text-muted">Poprzednia cena</span>
-            <span>
-              {% if product.previous_price is not none %}
-                {{ "%.2f"|format(product.previous_price) }}&nbsp;{{ product.currency }}
-              {% else %}—{% endif %}
-            </span>
-          </div>
-
-          <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
-            <span class="text-muted">Min. historyczna</span>
-            <span id="min-display-{{ product.id }}"
-                  class="text-success fw-bold editable-val"
-                  data-id="{{ product.id }}"
-                  data-field="min"
-                  data-value="{{ product.min_price if product.min_price is not none else '' }}"
-                  title="Kliknij aby edytować"
-                  style="cursor:pointer">
-              {% if product.min_price is not none %}
-                {{ "%.2f"|format(product.min_price) }}&nbsp;{{ product.currency }}
-              {% else %}<span class="text-muted fst-italic">kliknij aby ustawić</span>{% endif %}
-            </span>
-          </div>
-
-          <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
-            <span class="text-muted">Cena w PL</span>
-            <span id="sp-display-{{ product.id }}"
-                  class="fw-semibold text-dark editable-val"
-                  data-id="{{ product.id }}"
-                  data-field="sale"
-                  data-value="{{ product.sale_price if product.sale_price is not none else '' }}"
-                  title="Kliknij aby edytować"
-                  style="cursor:pointer">
-              {% if product.sale_price is not none %}
-                {{ "%.2f"|format(product.sale_price) }}&nbsp;<small class="text-muted">PLN</small>
-              {% else %}<span class="text-muted fst-italic">kliknij aby ustawić</span>{% endif %}
-            </span>
-          </div>
-
-          <div class="list-group-item px-0 d-flex justify-content-between">
-            <span class="text-muted">Pomiarów</span>
-            <span>{{ history | length }}</span>
-          </div>
-
-          <div class="list-group-item px-0 d-flex justify-content-between">
-            <span class="text-muted">Ostatnia aktualizacja</span>
-            <small>
-              {% if product.last_updated %}{{ product.last_updated[:16] }}{% else %}—{% endif %}
-            </small>
+        <div class="col-md-6 text-center text-md-start">
+          <h2 class="fw-bold mb-2">{{ product.name }}</h2>
+          <span class="badge bg-secondary mb-3">{{ product.store }}</span>
+          <div class="price-hero mt-2">
+            {% if product.current_price %}
+              {{ "%.2f"|format(product.current_price) }} <small class="fs-4">{{ product.currency }}</small>
+            {% else %}—{% endif %}
           </div>
         </div>
-
-        <div class="mt-4 d-flex flex-column gap-2">
-          <a href="{{ product.url }}" target="_blank" rel="noopener"
-             class="btn btn-outline-primary btn-sm">
-            <i class="bi bi-box-arrow-up-right me-1"></i>Otwórz w sklepie
-          </a>
-          <button class="btn btn-primary btn-sm" onclick="updateNow({{ product.id }})">
-            <i class="bi bi-arrow-clockwise me-1" id="spin-{{ product.id }}"></i>Aktualizuj cenę
-          </button>
+        <div class="col-md-3">
+           <div class="d-grid gap-2">
+              <a href="{{ product.url }}" target="_blank" rel="noopener" class="btn btn-primary d-flex align-items-center justify-content-center gap-2 py-3">
+                 <i class="bi bi-box-arrow-up-right"></i> Otwórz w sklepie
+              </a>
+              <button class="btn btn-outline-secondary d-flex align-items-center justify-content-center gap-2 py-3" onclick="updateNow({{ product.id }})">
+                 <i class="bi bi-arrow-clockwise" id="spin-{{ product.id }}"></i> Aktualizuj teraz
+              </button>
+           </div>
         </div>
-
       </div>
     </div>
   </div>
 
-  {# ── Right column: chart + history table ── #}
-  <div class="col-md-8 d-flex flex-column gap-4">
-
-    <div class="card shadow-sm">
-      <div class="card-body p-4">
-        <h6 class="mb-3">Historia cen</h6>
-        {% if history | length >= 2 %}
-          <canvas id="priceChart"></canvas>
-        {% else %}
-          <p class="text-muted mb-0">
-            Za mało danych do wykresu (potrzeba co najmniej 2 pomiarów).
-            Kliknij „Aktualizuj cenę" aby dodać nowy pomiar.
-          </p>
-        {% endif %}
+  <!-- Stats Grid -->
+  <div class="col-md-4">
+    <div class="d-flex flex-column gap-4">
+      <!-- Historical Min -->
+      <div class="card glass p-4 border-0">
+        <div class="stat-label mb-2">MINIMUM HISTORYCZNE</div>
+        <div class="h2 fw-bold text-success" id="min-display-{{ product.id }}" 
+             data-id="{{ product.id }}" data-field="min" 
+             data-value="{{ product.min_price or '' }}" style="cursor:pointer">
+          {% if product.min_price %}{{ "%.2f"|format(product.min_price) }} {{ product.currency }}{% else %}—{% endif %}
+        </div>
+        <div class="text-muted small mt-1">Najniższa odnotowana cena</div>
       </div>
-    </div>
 
-    {% if history %}
-    <div class="card shadow-sm">
-      <div class="card-body p-4">
-        <h6 class="mb-3">Wszystkie pomiary</h6>
-        <div style="max-height:260px;overflow-y:auto">
-          <table class="table table-sm mb-0">
-            <thead class="table-light sticky-top">
-              <tr>
-                <th>Data i godzina</th>
-                <th class="text-end">Cena</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for h in history | reverse %}
-              <tr>
-                <td class="text-muted small">{{ h.checked_at[:16] }}</td>
-                <td class="text-end fw-semibold">
-                  {{ "%.2f"|format(h.price) }}&nbsp;{{ product.currency }}
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+      <!-- Price in PL -->
+      <div class="card glass p-4 border-0">
+        <div class="stat-label mb-2">CENA W POLSCE (PLN)</div>
+        <div class="h2 fw-bold text-primary" id="sp-display-{{ product.id }}"
+             data-id="{{ product.id }}" data-field="sale" 
+             data-value="{{ product.sale_price or '' }}" style="cursor:pointer">
+          {% if product.sale_price %}{{ "%.2f"|format(product.sale_price) }} PLN{% else %}<span class="text-muted fs-6 fst-italic">ustaw cenę</span>{% endif %}
+        </div>
+        <div class="text-muted small mt-1">Cena referencyjna w PL</div>
+      </div>
+
+      <!-- General Info -->
+      <div class="card glass p-4 border-0">
+        <div class="stat-label mb-3">SZCZEGÓŁY</div>
+        <div class="d-flex flex-column gap-3">
+           <div class="d-flex justify-content-between">
+              <span class="text-muted">Poprzednio</span>
+              <span class="fw-semibold">{% if product.previous_price %}{{ "%.2f"|format(product.previous_price) }} {{ product.currency }}{% else %}—{% endif %}</span>
+           </div>
+           <div class="d-flex justify-content-between">
+              <span class="text-muted">Pomiary</span>
+              <span class="fw-semibold">{{ history | length }}</span>
+           </div>
+           <div class="d-flex justify-content-between">
+              <span class="text-muted">Aktualizacja</span>
+              <span class="fw-semibold small">{% if product.last_updated %}{{ product.last_updated[:16] }}{% else %}—{% endif %}</span>
+           </div>
         </div>
       </div>
     </div>
-    {% endif %}
+  </div>
 
+  <!-- Chart & History -->
+  <div class="col-md-8">
+     <div class="card glass h-100 p-4 border-0">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+           <h5 class="fw-bold mb-0">Historia cen</h5>
+           {% if history | length >= 2 %}
+           <div class="badge bg-primary-subtle text-primary">{{ history | length }} zapisów</div>
+           {% endif %}
+        </div>
+        
+        <div class="chart-container" style="min-height: 300px;">
+           {% if history | length >= 2 %}
+             <canvas id="priceChart"></canvas>
+           {% else %}
+             <div class="h-100 d-flex flex-column align-items-center justify-content-center py-5">
+                <i class="bi bi-bar-chart-line text-muted mb-3" style="font-size: 3rem;"></i>
+                <p class="text-muted">Potrzeba co najmniej 2 pomiarów do wygenerowania wykresu.</p>
+             </div>
+           {% endif %}
+        </div>
+
+        {% if history %}
+        <div class="mt-5">
+           <h6 class="fw-bold mb-3">Wszystkie pomiary</h6>
+           <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+              <table class="table table-sm align-middle">
+                 <thead class="sticky-top bg-white">
+                    <tr class="text-secondary small">
+                       <th>DATA I GODZINA</th>
+                       <th class="text-end">CENA ({{ product.currency }})</th>
+                       <th class="text-end">ZMIANA</th>
+                    </tr>
+                 </thead>
+                 <tbody>
+                    {% for h in history | reverse %}
+                    <tr>
+                       <td class="text-muted py-2">{{ h.checked_at[:16] }}</td>
+                       <td class="text-end fw-bold">{{ "%.2f"|format(h.price) }}</td>
+                       <td class="text-end">
+                          {% set idx = loop.index0 %}
+                          {% set h_list = history | reverse | list %}
+                          {% if idx < (h_list | length - 1) %}
+                             {% set next_h = h_list[idx+1] %}
+                             {% set diff = h.price - next_h.price %}
+                             {% if diff < 0 %}<span class="text-success small"><i class="bi bi-arrow-down-short"></i>{{ (diff|abs)|round(2) }}</span>
+                             {% elif diff > 0 %}<span class="text-danger small"><i class="bi bi-arrow-up-short"></i>{{ diff|round(2) }}</span>
+                             {% endif %}
+                          {% endif %}
+                       </td>
+                    </tr>
+                    {% endfor %}
+                 </tbody>
+              </table>
+           </div>
+        </div>
+        {% endif %}
+     </div>
   </div>
 </div>
 {% endblock %}
-
 
 {% block scripts %}
 {% if history | length >= 2 %}
@@ -197,32 +174,51 @@ new Chart(document.getElementById('priceChart'), {
     datasets: [{
       label: 'Cena (' + currency + ')',
       data: prices,
-      borderColor: '#0d6efd',
-      backgroundColor: 'rgba(13,110,253,0.07)',
-      tension: 0.3,
+      borderColor: '#007aff',
+      backgroundColor: 'rgba(0, 122, 255, 0.1)',
+      tension: 0.4,
       fill: true,
-      pointRadius: 4,
-      pointHoverRadius: 7,
-      pointBackgroundColor: prices.map(p =>
-        p === minPrice ? '#198754' : '#0d6efd'
-      ),
+      pointRadius: 5,
+      pointHoverRadius: 8,
+      pointBackgroundColor: '#007aff',
+      pointBorderColor: '#fff',
+      pointBorderWidth: 2,
     }]
   },
   options: {
     responsive: true,
+    maintainAspectRatio: false,
+    interaction: {
+       intersect: false,
+       mode: 'index',
+    },
     plugins: {
       legend: { display: false },
       tooltip: {
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        titleColor: '#1d1d1f',
+        bodyColor: '#1d1d1f',
+        borderColor: 'rgba(0,0,0,0.1)',
+        borderWidth: 1,
+        padding: 12,
+        cornerRadius: 10,
         callbacks: {
           label: ctx => ctx.parsed.y.toFixed(2) + ' ' + currency
         }
       }
     },
     scales: {
-      x: { ticks: { maxTicksLimit: 8, maxRotation: 30 } },
+      x: { 
+        ticks: { maxTicksLimit: 6, color: '#86868b' },
+        grid: { display: false }
+      },
       y: {
         beginAtZero: false,
-        ticks: { callback: v => v.toFixed(2) + ' ' + currency }
+        ticks: { 
+           callback: v => v.toFixed(2) + ' ' + currency,
+           color: '#86868b' 
+        },
+        grid: { color: 'rgba(0,0,0,0.03)' }
       }
     }
   }
@@ -233,7 +229,7 @@ new Chart(document.getElementById('priceChart'), {
 <script>
 // ── Inline edit: min_price i sale_price ──────────────────────────────────────
 document.addEventListener('click', function(e) {
-  const span = e.target.closest('.editable-val');
+  const span = e.target.closest('[id^="min-display-"], [id^="sp-display-"]');
   if (!span || span.querySelector('input')) return;
 
   const id    = span.dataset.id;
@@ -246,8 +242,8 @@ document.addEventListener('click', function(e) {
   const input = document.createElement('input');
   input.type  = 'number'; input.step = '0.01'; input.min = '0';
   input.value = cur;
-  input.className = 'form-control form-control-sm text-end';
-  input.style.cssText = 'width:100px;display:inline-block';
+  input.className = 'form-control form-control-sm h2 fw-bold text-center';
+  input.style.cssText = 'width:200px; display:inline-block; border-color: var(--apple-blue);';
   span.innerHTML = '';
   span.appendChild(input);
   input.focus(); input.select();
@@ -255,9 +251,9 @@ document.addEventListener('click', function(e) {
   const render = (val) => {
     span.dataset.value = val != null ? val : '';
     if (val != null && val !== '') {
-      span.innerHTML = Number(val).toFixed(2) + '\u00a0<small class="text-muted">' + curr + '</small>';
+      span.innerHTML = Number(val).toFixed(2) + ' ' + curr;
     } else {
-      span.innerHTML = '<span class="text-muted fst-italic">kliknij aby ustawić</span>';
+      span.innerHTML = '<span class="text-muted fs-6 fst-italic">ustaw cenę</span>';
     }
   };
 
@@ -275,97 +271,6 @@ document.addEventListener('click', function(e) {
   input.addEventListener('keydown', ev => {
     if (ev.key === 'Enter')  { ev.preventDefault(); input.blur(); }
     if (ev.key === 'Escape') { input.removeEventListener('blur', save); render(cur || null); }
-  });
-  input.addEventListener('blur', save, { once: true });
-});
-
-// ── Editable brand ───────────────────────────────────────────────────────────
-document.addEventListener('click', function(e) {
-  const span = e.target.closest('.brand-editable');
-  if (!span || span.querySelector('input')) return;
-
-  const id  = span.dataset.id;
-  const cur = span.dataset.value || '';
-
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.value = cur;
-  input.className = 'form-control form-control-sm text-end';
-  input.style.cssText = 'width:120px;display:inline-block';
-  span.innerHTML = '';
-  span.appendChild(input);
-  input.focus(); input.select();
-
-  const render = (val) => {
-    span.dataset.value = val;
-    span.innerHTML = val
-      ? '<span class="fw-semibold">' + val + '</span>'
-      : '<span class="text-muted fst-italic">kliknij aby ustawić</span>';
-    // also update data-brand on the name element so display name can reflect it
-    const nameEl = document.getElementById('prod-name-display');
-    if (nameEl) nameEl.dataset.brand = val;
-  };
-
-  const save = async () => {
-    const val = input.value.trim();
-    const body = new FormData();
-    body.append('brand', val);
-    try {
-      const res  = await fetch('/brand/' + id, { method: 'POST', body, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-      const data = await res.json();
-      if (data.success) render(data.brand);
-    } catch { render(cur); }
-  };
-
-  input.addEventListener('keydown', ev => {
-    if (ev.key === 'Enter')  { ev.preventDefault(); input.blur(); }
-    if (ev.key === 'Escape') { input.removeEventListener('blur', save); render(cur); }
-  });
-  input.addEventListener('blur', save, { once: true });
-});
-
-// ── Editable display name ─────────────────────────────────────────────────────
-(function applyDetailDisplayName() {
-  const el = document.getElementById('prod-name-display');
-  if (!el) return;
-  const id    = el.dataset.id;
-  const brand = el.dataset.brand || '';
-  const key   = 'product_name_v3_' + id;
-  const stored = JSON.parse(localStorage.getItem(key) || 'null');
-  if (stored && stored.brand === brand) {
-    el.textContent = stored.name;
-  }
-})();
-
-document.addEventListener('click', function(e) {
-  const btn = e.target.closest('.edit-name-btn-detail');
-  if (!btn) return;
-
-  const el = document.getElementById('prod-name-display');
-  if (!el || el.querySelector('input')) return;
-
-  const id      = el.dataset.id;
-  const brand   = el.dataset.brand || '';
-  const current = el.textContent.trim();
-
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.value = current;
-  input.className = 'form-control form-control-sm';
-  input.style.cssText = 'width:100%';
-  el.innerHTML = '';
-  el.appendChild(input);
-  input.focus(); input.select();
-
-  const save = () => {
-    const newName = input.value.trim() || current;
-    localStorage.setItem('product_name_v3_' + id, JSON.stringify({ name: newName, brand }));
-    el.textContent = newName;
-  };
-
-  input.addEventListener('keydown', ev => {
-    if (ev.key === 'Enter') { ev.preventDefault(); input.blur(); }
-    if (ev.key === 'Escape') { input.removeEventListener('blur', save); el.textContent = current; }
   });
   input.addEventListener('blur', save, { once: true });
 });
