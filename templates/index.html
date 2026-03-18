@@ -706,6 +706,14 @@ document.addEventListener('click', function(e) {
   input.addEventListener('blur', save, { once: true });
 });
 
+// ── Dropdown z-index fix in list view ────────────────────────────────────────
+document.addEventListener('shown.bs.dropdown', e => {
+  e.target.closest('.product-col')?.classList.add('dropdown-open');
+});
+document.addEventListener('hidden.bs.dropdown', e => {
+  e.target.closest('.product-col')?.classList.remove('dropdown-open');
+});
+
 // ── View toggle (grid / list) ─────────────────────────────────────────────────
 function setView(mode) {
   const grid    = document.getElementById('products-grid');

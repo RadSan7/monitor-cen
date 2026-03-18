@@ -216,15 +216,36 @@ body.dark-mode .dropdown-divider {
     border-radius: 14px !important;
 }
 
-/* Badges section: move to end, show only dropdown */
+/* Lift card above siblings when its dropdown is open */
+#products-grid.list-view .product-col {
+    position: relative;
+}
+
+#products-grid.list-view .product-col.dropdown-open {
+    z-index: 200;
+}
+
+/* Remove overflow:hidden and backdrop-filter in list mode so dropdown isn't clipped */
+#products-grid.list-view .card {
+    overflow: visible !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+/* Badges section: move to end, show store + filter badges */
 #products-grid.list-view .card-badges {
     order: 5;
     margin-bottom: 0 !important;
     flex-shrink: 0;
+    align-items: center;
+    gap: 0.4rem;
 }
 
 #products-grid.list-view .card-badges .badge-group {
-    display: none !important;
+    display: flex !important;
+    flex-wrap: nowrap;
+    gap: 0.3rem;
+    align-items: center;
 }
 
 /* Thumbnail + name */
