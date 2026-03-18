@@ -36,6 +36,14 @@
           {{ products | length }} produkt{{ 'y' if products|length in [2,3,4] else ('ów' if products|length != 1 else '') }}
         </span>
         {% if products %}
+        <div class="btn-group btn-group-sm" role="group" id="view-toggle">
+          <button id="btn-view-grid" class="btn btn-outline-secondary active" onclick="setView('grid')" title="Widok kart">
+            <i class="bi bi-grid-3x3-gap"></i>
+          </button>
+          <button id="btn-view-list" class="btn btn-outline-secondary" onclick="setView('list')" title="Widok listy">
+            <i class="bi bi-list-ul"></i>
+          </button>
+        </div>
         <button id="btn-update-all" class="btn btn-sm btn-primary" onclick="updateAll()">
           <i class="bi bi-arrow-clockwise me-2"></i>Aktualizuj
         </button>
@@ -108,8 +116,8 @@
 
     <div class="card h-100 border-0 p-3">
       <!-- Badge Section -->
-      <div class="d-flex justify-content-between align-items-start mb-3">
-        <div class="d-flex gap-2 flex-wrap">
+      <div class="card-badges d-flex justify-content-between align-items-start mb-3">
+        <div class="badge-group d-flex gap-2 flex-wrap">
           <a href="{{ p.url }}" target="_blank" rel="noopener" class="badge bg-secondary text-decoration-none">
             {{ p.store }} <i class="bi bi-box-arrow-up-right ms-1"></i>
           </a>
@@ -136,7 +144,7 @@
       </div>
 
       <!-- Main Content -->
-      <div class="d-flex gap-3 mb-3">
+      <div class="card-content d-flex gap-3 mb-3">
         <div class="flex-shrink-0">
           {% if p.thumbnail_url %}
             <img src="{{ p.thumbnail_url }}" alt="" class="product-thumb" loading="lazy">
@@ -157,7 +165,7 @@
       </div>
 
       <!-- Pricing -->
-      <div class="mt-auto">
+      <div class="card-pricing mt-auto">
         <div class="d-flex align-items-baseline gap-2 mb-2">
           <span class="h3 fw-800 mb-0" id="price-{{ p.id }}">
             {% if p.current_price is not none %}
@@ -698,11 +706,34 @@ document.addEventListener('click', function(e) {
   input.addEventListener('blur', save, { once: true });
 });
 
+// ── View toggle (grid / list) ─────────────────────────────────────────────────
+function setView(mode) {
+  const grid    = document.getElementById('products-grid');
+  const btnGrid = document.getElementById('btn-view-grid');
+  const btnList = document.getElementById('btn-view-list');
+  if (!grid) return;
+
+  if (mode === 'list') {
+    grid.classList.add('list-view');
+    btnGrid?.classList.remove('active');
+    btnList?.classList.add('active');
+  } else {
+    grid.classList.remove('list-view');
+    btnGrid?.classList.add('active');
+    btnList?.classList.remove('active');
+  }
+  localStorage.setItem('productView', mode);
+}
+
 // ── Initialize display names on page load ────────────────────────────────────
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', applyDisplayNames);
+  document.addEventListener('DOMContentLoaded', () => {
+    applyDisplayNames();
+    setView(localStorage.getItem('productView') || 'grid');
+  });
 } else {
   applyDisplayNames();
+  setView(localStorage.getItem('productView') || 'grid');
 }
 </script>
 {% endblock %}
