@@ -3,14 +3,12 @@
 {% block topbar %}
 <div class="topbar">
   <div class="container-xl px-3">
-
-    {# ── Row 1: search + toggle filters + count + update ── #}
     <div class="d-flex flex-wrap align-items-center gap-2">
 
-      <div class="input-group input-group-sm" style="max-width:240px">
+      <div class="input-group input-group-sm" style="max-width:280px">
         <span class="input-group-text"><i class="bi bi-search text-muted"></i></span>
         <input id="search-input" type="text" class="form-control border-start-0 ps-0"
-               placeholder="Szukaj…" oninput="applyFilters()">
+               placeholder="Szukaj produktu…" oninput="applyFilters()">
       </div>
 
       <button id="btn-filter-favorite" class="btn btn-sm btn-outline-secondary"
@@ -20,12 +18,12 @@
 
       <button id="btn-filter-dropship" class="btn btn-sm btn-outline-secondary"
               onclick="toggleFilter('dropship')" title="Pokaż tylko dropship">
-        <i class="bi bi-rocket-fill me-1"></i>Dropship
+        <i class="bi bi-truck me-1"></i>Dropship
       </button>
 
       <button id="btn-filter-changed" class="btn btn-sm btn-outline-secondary"
               onclick="toggleFilter('changed')" title="Pokaż tylko zmienione ceny">
-        <i class="bi bi-arrow-left-right me-1"></i>Zmiana
+        <i class="bi bi-arrow-left-right me-1"></i>Zmiana ceny
       </button>
 
       <button id="btn-filter-atlow" class="btn btn-sm btn-outline-secondary"
@@ -33,40 +31,7 @@
         <i class="bi bi-graph-down me-1"></i>Hist. min
       </button>
 
-      {% if products %}
-      {# Store filter buttons #}
-      {% set stores = [] %}
-      {% for p in products %}{% if p.store not in stores %}{% set _ = stores.append(p.store) %}{% endif %}{% endfor %}
-      {% for s in stores | sort %}
-      <button class="btn btn-sm btn-outline-secondary btn-filter-store"
-              data-store="{{ s | lower }}"
-              onclick="toggleStoreFilter(this)">{{ s }}</button>
-      {% endfor %}
-      {% endif %}
-
       <div class="ms-auto d-flex align-items-center gap-2">
-
-        {% if products %}
-        {# Brand dropdown #}
-        {% set brands = [] %}
-        {% for p in products %}{% if p.brand and p.brand not in brands %}{% set _ = brands.append(p.brand) %}{% endif %}{% endfor %}
-        {% if brands %}
-        <select id="brand-select" class="form-select form-select-sm" style="max-width:140px" onchange="applyFilters()">
-          <option value="">Marka</option>
-          {% for b in brands | sort %}
-          <option value="{{ b | lower }}">{{ b }}</option>
-          {% endfor %}
-        </select>
-        {% endif %}
-
-        {# Price range #}
-        <input id="price-min" type="number" min="0" step="10" placeholder="Min €"
-               class="form-control form-control-sm" style="max-width:75px" oninput="applyFilters()">
-        <span class="text-muted small">—</span>
-        <input id="price-max" type="number" min="0" step="10" placeholder="Max €"
-               class="form-control form-control-sm" style="max-width:75px" oninput="applyFilters()">
-        {% endif %}
-
         <span class="text-muted small fw-semibold" id="count-label">
           {{ products | length }} produkt{{ 'y' if products|length in [2,3,4] else ('ów' if products|length != 1 else '') }}
         </span>
@@ -78,6 +43,38 @@
       </div>
 
     </div>
+
+    {# ── Second row: store / brand / price filters ── #}
+    {% if products %}
+    <div class="d-flex flex-wrap align-items-center gap-2 mt-2 pt-2" style="border-top:1px solid rgba(0,0,0,.07)">
+
+      {% set stores = [] %}
+      {% for p in products %}{% if p.store not in stores %}{% set _ = stores.append(p.store) %}{% endif %}{% endfor %}
+      {% for s in stores | sort %}
+      <button class="btn btn-sm btn-outline-secondary btn-filter-store"
+              data-store="{{ s | lower }}"
+              onclick="toggleStoreFilter(this)">{{ s }}</button>
+      {% endfor %}
+
+      {% set brands = [] %}
+      {% for p in products %}{% if p.brand and p.brand not in brands %}{% set _ = brands.append(p.brand) %}{% endif %}{% endfor %}
+      {% if brands %}
+      <select id="brand-select" class="form-select form-select-sm" style="max-width:150px" onchange="applyFilters()">
+        <option value="">Wszystkie marki</option>
+        {% for b in brands | sort %}
+        <option value="{{ b | lower }}">{{ b }}</option>
+        {% endfor %}
+      </select>
+      {% endif %}
+
+      <input id="price-min" type="number" min="0" step="10" placeholder="Min EUR"
+             class="form-control form-control-sm" style="max-width:90px" oninput="applyFilters()">
+      <span class="text-muted small">—</span>
+      <input id="price-max" type="number" min="0" step="10" placeholder="Max EUR"
+             class="form-control form-control-sm" style="max-width:90px" oninput="applyFilters()">
+
+    </div>
+    {% endif %}
 
   </div>
 </div>
@@ -96,170 +93,116 @@
 </div>
 
 {% else %}
-<div class="card shadow-sm">
-  <div class="table-responsive">
-    <table class="table table-hover table-bordered-cols align-middle mb-0">
-      <thead class="table-dark">
-        <tr>
-          <th style="width:60px"></th>
-          <th style="width:200px">Produkt</th>
-          <th class="text-end" style="width:120px">Cena</th>
-          <th class="text-end" style="width:80px">Zmiana</th>
-          <th class="text-end" style="width:120px">Min. hist.</th>
-          <th class="text-end" style="width:110px" title="Kliknij wartość aby edytować">Cena w PL</th>
-          <th class="text-center" style="width:115px">Aktualizacja</th>
-          <th class="text-center" style="width:130px">Akcje</th>
-        </tr>
-      </thead>
-      <tbody id="products-tbody">
-        {% for p in products %}
-        <tr id="row-{{ p.id }}"
-            data-name="{{ p.name | lower }}"
-            data-store="{{ p.store | lower }}"
-            data-brand="{{ (p.brand or '') | lower }}"
-            data-dropship="{{ '1' if p.is_dropship else '0' }}"
-            data-changed="{{ '1' if p.previous_price is not none and p.current_price != p.previous_price else '0' }}"
-            data-atlow="{{ '1' if p.current_price is not none and p.min_price is not none and p.current_price == p.min_price else '0' }}"
-            data-price="{{ p.current_price or 0 }}"
-            data-favorite="{{ '1' if p.is_favorite else '0' }}"
-            class="fade-in">
+<div id="products-grid" class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+  {% for p in products %}
+  <div class="col product-col fade-in"
+       id="row-{{ p.id }}"
+       data-name="{{ p.name | lower }}"
+       data-store="{{ p.store | lower }}"
+       data-brand="{{ (p.brand or '') | lower }}"
+       data-dropship="{{ '1' if p.is_dropship else '0' }}"
+       data-changed="{{ '1' if p.previous_price is not none and p.current_price != p.previous_price else '0' }}"
+       data-atlow="{{ '1' if p.current_price is not none and p.min_price is not none and p.current_price == p.min_price else '0' }}"
+       data-price="{{ p.current_price or 0 }}"
+       data-favorite="{{ '1' if p.is_favorite else '0' }}">
 
-          {# Thumbnail #}
-          <td class="ps-3">
-            {% if p.thumbnail_url %}
-              <img src="{{ p.thumbnail_url }}" alt="" class="product-thumb" loading="lazy">
-            {% else %}
-              <div class="product-thumb-placeholder">
-                <i class="bi bi-image text-muted"></i>
-              </div>
-            {% endif %}
-          </td>
+    <div class="card h-100 border-0 p-3">
+      <!-- Badge Section -->
+      <div class="d-flex justify-content-between align-items-start mb-3">
+        <div class="d-flex gap-2 flex-wrap">
+          <a href="{{ p.url }}" target="_blank" rel="noopener" class="badge bg-secondary text-decoration-none">
+            {{ p.store }} <i class="bi bi-box-arrow-up-right ms-1"></i>
+          </a>
+          {% if p.is_dropship %}
+          <span class="badge bg-info dropship-badge"><i class="bi bi-rocket-fill me-1"></i>Dropship</span>
+          {% endif %}
+          {% if p.is_favorite %}
+          <span class="badge bg-danger favorite-badge"><i class="bi bi-heart-fill me-1"></i></span>
+          {% endif %}
+        </div>
+        <div class="dropdown">
+          <button class="btn btn-sm btn-link text-muted p-0" data-bs-toggle="dropdown">
+            <i class="bi bi-three-dots-vertical"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end glass border-0 shadow">
+            <li><button class="dropdown-item" onclick="updateProduct({{ p.id }})"><i class="bi bi-arrow-clockwise me-2" id="spin-{{ p.id }}"></i>Aktualizuj</button></li>
+            <li><button class="dropdown-item edit-name-btn" data-id="{{ p.id }}"><i class="bi bi-pencil me-2"></i>Zmień nazwę</button></li>
+            <li><button class="dropdown-item" id="fav-btn-{{ p.id }}" onclick="toggleFavorite({{ p.id }})"><i class="bi bi-heart{% if p.is_favorite %}-fill{% endif %} me-2"></i>{% if p.is_favorite %}Usuń z ulubionych{% else %}Ulubione{% endif %}</button></li>
+            <li><button class="dropdown-item" onclick="toggleDropship({{ p.id }})"><i class="bi bi-rocket me-2"></i>Dropship</button></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><button class="dropdown-item text-danger delete-btn" data-id="{{ p.id }}"><i class="bi bi-trash3 me-2"></i>Usuń</button></li>
+          </ul>
+        </div>
+      </div>
 
-          {# Name + store #}
-          <td class="product-name-cell" data-id="{{ p.id }}" data-original="{{ p.name }}" data-brand="{{ p.brand or '' }}" style="overflow:hidden">
-            <div class="fw-semibold lh-sm" style="font-size:.9rem; display:flex; align-items:center; gap:0.5rem">
-              <a href="/product/{{ p.id }}" class="text-decoration-none text-dark hover-link" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1">
-                <span class="product-display-name" title="Kliknij aby edytować">{{ p.name }}</span>
-              </a>
-              <button class="btn btn-sm btn-outline-secondary edit-name-btn"
-                      data-id="{{ p.id }}"
-                      title="Zmień nazwę"
-                      style="padding:0.15rem 0.35rem; border:1px solid #ccc; flex-shrink:0; border-radius:3px">
-                <i class="bi bi-pencil" style="font-size:.75rem"></i>
-              </button>
+      <!-- Main Content -->
+      <div class="d-flex gap-3 mb-3">
+        <div class="flex-shrink-0">
+          {% if p.thumbnail_url %}
+            <img src="{{ p.thumbnail_url }}" alt="" class="product-thumb" loading="lazy">
+          {% else %}
+            <div class="product-thumb-placeholder">
+              <i class="bi bi-image text-muted"></i>
             </div>
-            <div class="d-flex align-items-center gap-2 mt-1 flex-wrap">
-              <a href="{{ p.url }}" target="_blank" rel="noopener"
-                 class="badge bg-secondary text-decoration-none"
-                 title="Otwórz w sklepie"
-                 onclick="event.stopPropagation()">
-                {{ p.store }}&nbsp;<i class="bi bi-box-arrow-up-right" style="font-size:.7rem"></i>
-              </a>
-            </div>
-          </td>
+          {% endif %}
+        </div>
+        <div class="flex-grow-1 overflow-hidden">
+          <div class="product-name-cell" data-id="{{ p.id }}" data-original="{{ p.name }}" data-brand="{{ p.brand or '' }}">
+             <a href="/product/{{ p.id }}" class="text-decoration-none text-dark">
+                <h6 class="product-display-name fw-bold mb-1 text-truncate" title="{{ p.name }}">{{ p.name }}</h6>
+             </a>
+             <div class="text-muted small">{{ p.brand or 'Bez marki' }}</div>
+          </div>
+        </div>
+      </div>
 
-          {# Current price #}
-          <td class="text-end">
-            <span id="price-{{ p.id }}" class="fw-bold" style="font-size:.95rem">
-              {% if p.current_price is not none %}
-                {{ "%.2f"|format(p.current_price) }}&nbsp;<small class="text-muted">{{ p.currency }}</small>
-              {% else %}<span class="text-muted">—</span>{% endif %}
-            </span>
-          </td>
-
-          {# Change % #}
-          <td class="text-end" id="change-{{ p.id }}" style="font-size:.85rem">
+      <!-- Pricing -->
+      <div class="mt-auto">
+        <div class="d-flex align-items-baseline gap-2 mb-2">
+          <span class="h3 fw-800 mb-0" id="price-{{ p.id }}">
+            {% if p.current_price is not none %}
+              {{ "%.2f"|format(p.current_price) }} <small class="fs-6 fw-normal text-muted">{{ p.currency }}</small>
+            {% else %}<span class="text-muted">—</span>{% endif %}
+          </span>
+          <span id="change-{{ p.id }}">
             {% if p.previous_price is not none and p.current_price is not none %}
               {% set diff = p.current_price - p.previous_price %}
               {% set pct  = diff / p.previous_price * 100 %}
               {% if diff < 0 %}
-                <span class="text-success fw-bold">
+                <span class="badge bg-success-subtle text-success border border-success-subtle">
                   <i class="bi bi-arrow-down-short"></i>{{ "%.1f"|format(pct|abs) }}%
                 </span>
               {% elif diff > 0 %}
-                <span class="text-danger fw-bold">
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">
                   <i class="bi bi-arrow-up-short"></i>{{ "%.1f"|format(pct) }}%
                 </span>
-              {% else %}
-                <span class="text-muted">—</span>
               {% endif %}
-            {% else %}
-              <span class="text-muted">—</span>
             {% endif %}
-          </td>
+          </span>
+        </div>
 
-          {# Min historical #}
-          <td class="text-end min-price-cell"
-              id="mp-{{ p.id }}"
-              data-id="{{ p.id }}"
-              data-currency="{{ p.currency }}"
-              style="font-size:.85rem; cursor:pointer"
-              title="Kliknij aby edytować">
-            {% if p.min_price is not none %}
-              {% set is_min_current = p.current_price is not none and p.current_price == p.min_price %}
-              <span class="fw-bold {% if is_min_current %}text-success{% else %}text-dark{% endif %}">
-                {{ "%.2f"|format(p.min_price) }}&nbsp;<small>{{ p.currency }}</small>
-              </span>
-            {% else %}<span class="text-muted">—</span>{% endif %}
-          </td>
-
-          {# Sale price (Cena w PL) — zawsze w PLN #}
-          <td class="text-end sale-price-cell"
-              id="sp-{{ p.id }}"
-              data-id="{{ p.id }}"
-              style="font-size:.85rem; cursor:pointer"
-              title="Kliknij aby edytować">
-            {% if p.sale_price is not none %}
-              <span class="fw-semibold text-dark">
-                {{ "%.2f"|format(p.sale_price) }}&nbsp;<small class="text-muted">PLN</small>
-              </span>
-            {% else %}
-              <span class="text-muted add-hint">+ dodaj</span>
-            {% endif %}
-          </td>
-
-          {# Last updated #}
-          <td class="text-center text-muted no-wrap" id="updated-{{ p.id }}"
-              style="font-size:.75rem">
-            {% if p.last_updated %}{{ p.last_updated[:16] }}{% else %}—{% endif %}
-          </td>
-
-          {# Actions #}
-          <td class="text-center pe-3">
-            <div class="btn-group btn-group-sm gap-1" role="group">
-              {# Favorite toggle #}
-              <button class="btn {% if p.is_favorite %}btn-danger{% else %}btn-outline-secondary{% endif %}"
-                      id="fav-btn-{{ p.id }}"
-                      onclick="toggleFavorite({{ p.id }})"
-                      title="{% if p.is_favorite %}Usuń z ulubionych{% else %}Dodaj do ulubionych{% endif %}">
-                <i class="bi {% if p.is_favorite %}bi-heart-fill{% else %}bi-heart{% endif %}"></i>
-              </button>
-              {# Dropship toggle #}
-              <button class="btn {% if p.is_dropship %}btn-info{% else %}btn-outline-secondary{% endif %}"
-                      id="ds-btn-{{ p.id }}"
-                      onclick="toggleDropship({{ p.id }})"
-                      title="{% if p.is_dropship %}Oznaczony jako Dropship{% else %}Oznacz jako Dropship{% endif %}">
-                <i class="bi bi-rocket-fill"></i>
-              </button>
-              {# Update #}
-              <button class="btn btn-outline-primary"
-                      onclick="updateProduct({{ p.id }})" title="Aktualizuj cenę">
-                <i class="bi bi-arrow-clockwise" id="spin-{{ p.id }}"></i>
-              </button>
-              {# Delete #}
-              <button class="btn btn-outline-danger delete-btn"
-                      data-id="{{ p.id }}"
-                      title="Usuń produkt">
-                <i class="bi bi-trash3"></i>
-              </button>
+        <div class="row g-2 pt-2 border-top mt-2">
+          <div class="col-6 min-price-cell" id="mp-{{ p.id }}" data-id="{{ p.id }}" data-currency="{{ p.currency }}">
+            <div class="stat-label">Min. Hist.</div>
+            <div class="fw-bold {% if p.current_price == p.min_price %}text-success{% endif %}">
+              {% if p.min_price %}{{ "%.2f"|format(p.min_price) }} {{ p.currency }}{% else %}—{% endif %}
             </div>
-          </td>
+          </div>
+          <div class="col-6 sale-price-cell" id="sp-{{ p.id }}" data-id="{{ p.id }}">
+            <div class="stat-label">Cena w PL</div>
+            <div class="fw-bold text-primary">
+              {% if p.sale_price %}{{ "%.2f"|format(p.sale_price) }} PLN{% else %}<span class="text-muted small">+ dodaj</span>{% endif %}
+            </div>
+          </div>
+        </div>
 
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        <div class="text-end text-muted mt-2" style="font-size: 0.7rem;" id="updated-{{ p.id }}">
+          Aktualizacja: {% if p.last_updated %}{{ p.last_updated[:16] }}{% else %}—{% endif %}
+        </div>
+      </div>
+    </div>
   </div>
+  {% endfor %}
 </div>
 
 <div id="no-results" class="text-center text-muted py-5 d-none">
@@ -271,18 +214,16 @@
 
 {# ── Update progress widget (bottom-right) ────────────────────────────────── #}
 <div id="update-progress" class="d-none"
-     style="position:fixed; bottom:24px; right:24px; z-index:1055; min-width:240px">
-  <div class="card shadow border-0" style="border-radius:12px; overflow:hidden">
-    <div class="card-body p-3">
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <span class="fw-semibold small"><i class="bi bi-arrow-clockwise me-2 text-primary"></i>Aktualizacja cen</span>
-        <span id="progress-text" class="text-muted small fw-semibold">0 / 0</span>
-      </div>
-      <div class="progress" style="height:5px; border-radius:4px">
-        <div id="progress-bar"
-             class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
-             style="width:0%; transition:width .3s ease"></div>
-      </div>
+     style="position:fixed; bottom:24px; right:24px; z-index:1055; min-width:260px">
+  <div class="glass" style="border-radius:16px; overflow:hidden; padding:1rem">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span class="fw-semibold small"><i class="bi bi-arrow-clockwise me-2 text-primary"></i>Aktualizacja cen</span>
+      <span id="progress-text" class="text-muted small fw-semibold">0 / 0</span>
+    </div>
+    <div class="progress" style="height:5px; border-radius:4px">
+      <div id="progress-bar"
+           class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+           style="width:0%; transition:width .3s ease"></div>
     </div>
   </div>
 </div>
@@ -290,7 +231,7 @@
 {# ── Update summary modal ─────────────────────────────────────────────────── #}
 <div class="modal fade" id="update-summary-modal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered" style="max-width:340px">
-    <div class="modal-content border-0 shadow-lg" style="border-radius:14px">
+    <div class="modal-content glass border-0 shadow-lg" style="border-radius:18px">
       <div class="modal-body p-4 text-center">
         <div id="update-summary-body"></div>
         <button type="button" class="btn btn-primary btn-sm mt-3 px-4"
@@ -322,7 +263,6 @@ function cleanProductName(name, brand) {
   });
   cleaned = cleaned.replace(/\s+/g, ' ').trim();
 
-  // Prepend brand if not already at the start
   if (brand && !cleaned.toLowerCase().startsWith(brand.toLowerCase())) {
     cleaned = brand + ' ' + cleaned;
   }
@@ -340,7 +280,6 @@ function applyDisplayNames() {
 
     const key = `product_name_v3_${productId}`;
     const stored = JSON.parse(localStorage.getItem(key) || 'null');
-    // Use stored name only if the brand it was computed with matches current brand
     if (stored && stored.brand === brand) {
       elem.textContent = stored.name;
     } else {
@@ -357,7 +296,7 @@ document.addEventListener('click', function(e) {
   if (!btn) return;
 
   const cell = btn.closest('.product-name-cell');
-  if (cell.querySelector('input')) return;
+  if (!cell || cell.querySelector('input')) return;
 
   const productId = cell.dataset.id;
   const displayElem = cell.querySelector('.product-display-name');
@@ -379,10 +318,9 @@ document.addEventListener('click', function(e) {
     localStorage.setItem(`product_name_v3_${productId}`, JSON.stringify({ name: newName, brand }));
 
     const span = document.createElement('span');
-    span.className = 'product-display-name';
-    span.title = 'Kliknij aby edytować';
+    span.className = 'product-display-name fw-bold mb-1 text-truncate';
+    span.title = newName;
     span.textContent = newName;
-
     input.replaceWith(span);
   };
 
@@ -390,8 +328,8 @@ document.addEventListener('click', function(e) {
     if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
     if (e.key === 'Escape') {
       const span = document.createElement('span');
-      span.className = 'product-display-name';
-      span.title = 'Kliknij aby edytować';
+      span.className = 'product-display-name fw-bold mb-1 text-truncate';
+      span.title = current;
       span.textContent = current;
       input.replaceWith(span);
     }
@@ -408,7 +346,7 @@ function toggleFilter(name) {
   const btn = document.getElementById('btn-filter-' + name);
   if (activeFilters.has(name)) {
     activeFilters.delete(name);
-    btn.classList.remove('active', 'btn-primary', 'btn-warning', 'btn-success');
+    btn.classList.remove('active', 'btn-danger', 'btn-primary', 'btn-warning', 'btn-success');
     btn.classList.add('btn-outline-secondary');
   } else {
     activeFilters.add(name);
@@ -432,7 +370,7 @@ function toggleStoreFilter(btn) {
 
 function applyFilters() {
   const query    = document.getElementById('search-input').value.toLowerCase().trim();
-  const rows     = document.querySelectorAll('#products-tbody tr');
+  const rows     = document.querySelectorAll('.product-col');
   const brandSel = document.getElementById('brand-select');
   const pMinEl   = document.getElementById('price-min');
   const pMaxEl   = document.getElementById('price-max');
@@ -442,14 +380,14 @@ function applyFilters() {
   let visible    = 0;
 
   rows.forEach(row => {
-    const name     = row.dataset.name  || '';
-    const store    = row.dataset.store || '';
-    const brand    = row.dataset.brand || '';
-    const price    = parseFloat(row.dataset.price) || 0;
+    const name  = row.dataset.name  || '';
+    const store = row.dataset.store || '';
+    const brand = row.dataset.brand || '';
+    const price = parseFloat(row.dataset.price) || 0;
 
     let show = true;
     if (query && !name.includes(query) && !store.includes(query) && !brand.includes(query)) show = false;
-    if (activeFilters.has('favorite')  && row.dataset.favorite  !== '1') show = false;
+    if (activeFilters.has('favorite') && row.dataset.favorite !== '1') show = false;
     if (activeFilters.has('dropship') && row.dataset.dropship !== '1') show = false;
     if (activeFilters.has('changed')  && row.dataset.changed  !== '1') show = false;
     if (activeFilters.has('atlow')    && row.dataset.atlow    !== '1') show = false;
@@ -482,13 +420,26 @@ async function toggleFavorite(id) {
   if (!data.success) return;
 
   const row   = document.getElementById('row-' + id);
-  const btn   = document.getElementById('fav-btn-' + id);
   const isNow = data.is_favorite;
 
   row.dataset.favorite = isNow ? '1' : '0';
-  btn.className = 'btn ' + (isNow ? 'btn-danger' : 'btn-outline-secondary');
-  btn.title     = isNow ? 'Usuń z ulubionych' : 'Dodaj do ulubionych';
-  btn.innerHTML = '<i class="bi ' + (isNow ? 'bi-heart-fill' : 'bi-heart') + '"></i>';
+
+  const btn = document.getElementById('fav-btn-' + id);
+  if (btn) {
+    btn.innerHTML = `<i class="bi bi-heart${isNow ? '-fill' : ''} me-2"></i>${isNow ? 'Usuń z ulubionych' : 'Ulubione'}`;
+  }
+
+  // Update/add favorite badge in the badge section
+  const badgeArea = row.querySelector('.d-flex.gap-2.flex-wrap');
+  const favBadge  = row.querySelector('.favorite-badge');
+  if (isNow && !favBadge) {
+    const badge = document.createElement('span');
+    badge.className = 'badge bg-danger favorite-badge';
+    badge.innerHTML = '<i class="bi bi-heart-fill me-1"></i>';
+    badgeArea.appendChild(badge);
+  } else if (!isNow && favBadge) {
+    favBadge.remove();
+  }
 
   applyFilters();
 }
@@ -499,25 +450,21 @@ async function toggleDropship(id) {
   const data = await res.json();
   if (!data.success) return;
 
-  const row = document.getElementById('row-' + id);
-  const btn = document.getElementById('ds-btn-' + id);
+  const row   = document.getElementById('row-' + id);
   const isNow = data.is_dropship;
 
   row.dataset.dropship = isNow ? '1' : '0';
 
-  const badgeEl = row.querySelector('.dropship-badge');
+  const badgeArea = row.querySelector('.d-flex.gap-2.flex-wrap');
+  const badgeEl   = row.querySelector('.dropship-badge');
   if (isNow && !badgeEl) {
-    const badgeDiv = row.querySelector('.d-flex.align-items-center');
     const badge = document.createElement('span');
     badge.className = 'badge bg-info dropship-badge';
     badge.innerHTML = '<i class="bi bi-rocket-fill me-1"></i>Dropship';
-    badgeDiv.appendChild(badge);
+    badgeArea.appendChild(badge);
   } else if (!isNow && badgeEl) {
     badgeEl.remove();
   }
-
-  btn.className = 'btn btn-xs ' + (isNow ? 'btn-info' : 'btn-outline-secondary');
-  btn.title = isNow ? 'Oznaczony jako Dropship' : 'Oznacz jako Dropship';
 
   applyFilters();
 }
@@ -525,7 +472,7 @@ async function toggleDropship(id) {
 // ── Update single ─────────────────────────────────────────────────────────────
 async function updateProduct(id) {
   const icon = document.getElementById('spin-' + id);
-  icon.classList.add('spin');
+  if (icon) icon.classList.add('spin');
   try {
     const res  = await fetch('/update/' + id, { method: 'POST' });
     const data = await res.json();
@@ -534,13 +481,13 @@ async function updateProduct(id) {
   } catch (e) {
     alert('Błąd połączenia: ' + e);
   } finally {
-    icon.classList.remove('spin');
+    if (icon) icon.classList.remove('spin');
   }
 }
 
 // ── Update all ────────────────────────────────────────────────────────────────
 async function updateAll() {
-  const rows = [...document.querySelectorAll('#products-tbody tr[id^="row-"]')]
+  const rows = [...document.querySelectorAll('.product-col[id^="row-"]')]
     .sort((a, b) => a.dataset.store.localeCompare(b.dataset.store));
   const total = rows.length;
   if (!total) return;
@@ -553,7 +500,6 @@ async function updateAll() {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Aktualizuję…';
   widget.classList.remove('d-none');
-  progressBar.classList.add('progress-bar-striped', 'progress-bar-animated');
 
   let done = 0, changed = 0, unavailable = 0, failed = 0;
 
@@ -566,7 +512,7 @@ async function updateAll() {
       const res  = await fetch('/update/' + id, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
-        if (data.unavailable)    unavailable++;
+        if (data.unavailable)     unavailable++;
         else if (data.price_changed) changed++;
       } else {
         failed++;
@@ -577,7 +523,6 @@ async function updateAll() {
     done++;
   }
 
-  // Finish progress bar
   progressText.textContent = `${done} / ${total}`;
   progressBar.style.width  = '100%';
   progressBar.classList.remove('progress-bar-striped', 'progress-bar-animated');
@@ -587,7 +532,6 @@ async function updateAll() {
   btn.disabled = false;
   btn.innerHTML = '<i class="bi bi-arrow-clockwise me-2"></i>Aktualizuj';
 
-  // Build summary
   const successCount = done - failed;
   let html = `<p class="fs-4 fw-bold mb-1">${successCount}<span class="fs-6 fw-normal text-muted">/${total}</span></p>`
            + `<p class="text-muted small mb-2">zaktualizowanych</p>`;
@@ -619,22 +563,18 @@ document.addEventListener('click', async function(e) {
   if (!btn) return;
   const id = btn.dataset.id;
 
-  // First click — highlight and wait for confirm
   if (!btn.dataset.pending) {
     btn.dataset.pending = '1';
-    btn.classList.remove('btn-outline-danger');
-    btn.classList.add('btn-danger');
+    btn.classList.add('text-danger', 'fw-bold');
     btn.title = 'Kliknij ponownie aby potwierdzić';
     _deleteTimers[id] = setTimeout(() => {
       btn.dataset.pending = '';
-      btn.classList.remove('btn-danger');
-      btn.classList.add('btn-outline-danger');
+      btn.classList.remove('text-danger', 'fw-bold');
       btn.title = 'Usuń produkt';
     }, 3000);
     return;
   }
 
-  // Second click — delete
   clearTimeout(_deleteTimers[id]);
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
@@ -649,9 +589,7 @@ document.addEventListener('click', async function(e) {
     }
   } catch (err) {
     btn.disabled = false;
-    btn.innerHTML = '<i class="bi bi-trash3"></i>';
-    btn.classList.remove('btn-danger');
-    btn.classList.add('btn-outline-danger');
+    btn.innerHTML = '<i class="bi bi-trash3 me-2"></i>Usuń';
   }
 });
 
@@ -661,15 +599,14 @@ document.addEventListener('click', function(e) {
   if (!cell || cell.querySelector('input')) return;
 
   const id      = cell.dataset.id;
-  const current = cell.querySelector('.fw-semibold')?.textContent.trim().split('\u00a0')[0] || '';
+  const current = cell.querySelector('.fw-bold')?.textContent.trim().split('\u00a0')[0].replace(/[^\d.]/g, '') || '';
 
   const input = document.createElement('input');
   input.type      = 'number';
   input.step      = '0.01';
   input.min       = '0';
   input.value     = current;
-  input.className = 'form-control form-control-sm text-end';
-  input.style.cssText = 'width:90px;display:inline-block';
+  input.className = 'form-control form-control-sm';
   cell.innerHTML  = '';
   cell.appendChild(input);
   input.focus();
@@ -677,10 +614,10 @@ document.addEventListener('click', function(e) {
 
   const render = (sp) => {
     if (sp !== null && sp !== undefined) {
-      cell.innerHTML = '<span class="fw-semibold text-warning">' +
-        Number(sp).toFixed(2) + '\u00a0<small class="text-muted">PLN</small></span>';
+      cell.innerHTML = '<div class="stat-label">Cena w PL</div><div class="fw-bold text-primary">' +
+        Number(sp).toFixed(2) + ' PLN</div>';
     } else {
-      cell.innerHTML = '<span class="text-muted add-hint">+ dodaj</span>';
+      cell.innerHTML = '<div class="stat-label">Cena w PL</div><div class="fw-bold text-primary"><span class="text-muted small">+ dodaj</span></div>';
     }
   };
 
@@ -710,37 +647,33 @@ document.addEventListener('click', function(e) {
   const cell = e.target.closest('.min-price-cell');
   if (!cell || cell.querySelector('input')) return;
 
-  const id      = cell.dataset.id;
-  const current = cell.querySelector('.fw-bold')?.textContent.trim().split('\u00a0')[0] || '';
+  const id       = cell.dataset.id;
+  const currency = cell.dataset.currency || 'EUR';
+  const current  = cell.querySelector('.fw-bold')?.textContent.trim().split('\u00a0')[0].replace(/[^\d.]/g, '') || '';
 
   const input = document.createElement('input');
   input.type      = 'number';
   input.step      = '0.01';
   input.min       = '0';
   input.value     = current;
-  input.className = 'form-control form-control-sm text-end';
-  input.style.cssText = 'width:90px;display:inline-block';
+  input.className = 'form-control form-control-sm';
   cell.innerHTML  = '';
   cell.appendChild(input);
   input.focus();
   input.select();
 
-  // Get currency from the cell (was in the small tag)
-  const currency = cell.dataset.currency || 'EUR';
-
   const render = (mp) => {
-    // Check if current price == min price by getting current price from the row
     const row = document.getElementById('row-' + id);
     const priceSpan = row?.querySelector('[id^="price-"]');
     const currentPrice = priceSpan ? parseFloat(priceSpan.textContent.trim().split('\u00a0')[0]) : null;
     const isMinCurrent = currentPrice !== null && currentPrice === parseFloat(mp);
 
     if (mp !== null && mp !== undefined && mp !== '') {
-      const colorClass = isMinCurrent ? 'text-success' : 'text-dark';
-      cell.innerHTML = '<span class="fw-bold ' + colorClass + '">' +
-        Number(mp).toFixed(2) + '\u00a0<small>' + currency + '</small></span>';
+      const colorClass = isMinCurrent ? 'text-success' : '';
+      cell.innerHTML = '<div class="stat-label">Min. Hist.</div><div class="fw-bold ' + colorClass + '">' +
+        Number(mp).toFixed(2) + ' ' + currency + '</div>';
     } else {
-      cell.innerHTML = '<span class="text-muted">—</span>';
+      cell.innerHTML = '<div class="stat-label">Min. Hist.</div><div class="fw-bold">—</div>';
     }
   };
 
@@ -748,7 +681,6 @@ document.addEventListener('click', function(e) {
     const val  = input.value.trim();
     const body = new FormData();
     if (val) body.append('min_price', val);
-
     try {
       const res  = await fetch('/min-price/' + id, {
         method: 'POST', body,
@@ -767,8 +699,6 @@ document.addEventListener('click', function(e) {
 });
 
 // ── Initialize display names on page load ────────────────────────────────────
-document.addEventListener('DOMContentLoaded', applyDisplayNames);
-// Also apply on page load if DOM is already ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', applyDisplayNames);
 } else {

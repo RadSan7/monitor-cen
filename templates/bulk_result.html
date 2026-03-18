@@ -5,41 +5,55 @@
 <div class="row justify-content-center">
   <div class="col-md-8 col-lg-7">
 
-    <div class="d-flex align-items-center gap-2 mb-4">
-      <a href="/" class="btn btn-outline-secondary btn-sm">
+    <div class="d-flex align-items-center gap-3 mb-4">
+      <a href="/" class="btn btn-outline-secondary btn-sm rounded-pill">
         <i class="bi bi-arrow-left"></i>
       </a>
-      <h5 class="mb-0">Wyniki importu</h5>
+      <h5 class="mb-0 fw-bold">Wyniki importu</h5>
     </div>
 
     {# Summary bar #}
-    <div class="d-flex gap-3 mb-4">
-      <div class="card flex-fill text-center py-3 border-success">
-        <div class="fs-2 fw-bold text-success">{{ added }}</div>
-        <div class="text-muted small">dodano</div>
+    <div class="row g-3 mb-4">
+      <div class="col-4">
+         <div class="card glass text-center py-4 border-0">
+           <div class="h2 fw-bold text-success mb-0">{{ added }}</div>
+           <div class="stat-label">dodano</div>
+         </div>
       </div>
-      <div class="card flex-fill text-center py-3 {% if failed > 0 %}border-danger{% endif %}">
-        <div class="fs-2 fw-bold {% if failed > 0 %}text-danger{% else %}text-muted{% endif %}">{{ failed }}</div>
-        <div class="text-muted small">błędów</div>
+      <div class="col-4">
+         <div class="card glass text-center py-4 border-0">
+           <div class="h2 fw-bold {% if failed > 0 %}text-danger{% else %}text-muted{% endif %} mb-0">{{ failed }}</div>
+           <div class="stat-label">błędy</div>
+         </div>
       </div>
-      <div class="card flex-fill text-center py-3">
-        <div class="fs-2 fw-bold">{{ results | length }}</div>
-        <div class="text-muted small">łącznie</div>
+      <div class="col-4">
+         <div class="card glass text-center py-4 border-0">
+           <div class="h2 fw-bold mb-0 text-primary">{{ results | length }}</div>
+           <div class="stat-label">łącznie</div>
+         </div>
       </div>
     </div>
 
     {# Results list #}
-    <div class="card shadow-sm">
+    <div class="card glass shadow-sm border-0 mb-4">
       <div class="list-group list-group-flush">
         {% for r in results %}
-        <div class="list-group-item px-4 py-3">
+        <div class="list-group-item bg-transparent border-glass px-4 py-3">
           <div class="d-flex align-items-start gap-3">
 
             {# Status icon #}
             {% if r.success %}
-              <span class="mt-1 text-success fs-5"><i class="bi bi-check-circle-fill"></i></span>
+              <div class="mt-1 flex-shrink-0">
+                 <div class="bg-success-subtle p-2 rounded-circle" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                    <i class="bi bi-check-lg text-success"></i>
+                 </div>
+              </div>
             {% else %}
-              <span class="mt-1 text-danger fs-5"><i class="bi bi-x-circle-fill"></i></span>
+               <div class="mt-1 flex-shrink-0">
+                 <div class="bg-danger-subtle p-2 rounded-circle" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                    <i class="bi bi-x-lg text-danger"></i>
+                 </div>
+              </div>
             {% endif %}
 
             <div class="flex-grow-1 overflow-hidden">
@@ -47,19 +61,22 @@
                 {# Success row #}
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                   {% if r.data.thumbnail_url %}
-                  <img src="{{ r.data.thumbnail_url }}" alt=""
-                       style="width:36px;height:36px;object-fit:contain;background:#f8f9fa;border-radius:6px;padding:2px;flex-shrink:0">
+                  <img src="{{ r.data.thumbnail_url }}" alt="" class="product-thumb" style="width:40px; height:40px;">
                   {% endif %}
-                  <div class="fw-semibold text-truncate" style="max-width:340px">{{ r.data.name }}</div>
-                  <span class="badge bg-secondary" style="font-size:.65rem">{{ r.data.store }}</span>
-                  <span class="text-success fw-bold ms-auto">{{ "%.2f"|format(r.data.price) }}&nbsp;{{ r.data.currency }}</span>
+                  <div>
+                    <div class="fw-bold text-truncate" style="max-width:340px">{{ r.data.name }}</div>
+                    <div class="d-flex gap-2 align-items-center">
+                       <span class="badge bg-secondary" style="font-size:.7rem">{{ r.data.store }}</span>
+                       <span class="text-success fw-bold">{{ "%.2f"|format(r.data.price) }} {{ r.data.currency }}</span>
+                    </div>
+                  </div>
                 </div>
                 <a href="{{ r.url }}" target="_blank" rel="noopener"
-                   class="text-muted small d-block text-truncate mt-1">{{ r.url }}</a>
+                   class="text-muted small d-block text-truncate mt-2 opacity-50">{{ r.url }}</a>
               {% else %}
                 {# Error row #}
                 <div class="text-truncate text-muted small mb-1">{{ r.url }}</div>
-                <div class="text-danger small"><i class="bi bi-exclamation-triangle me-1"></i>{{ r.error }}</div>
+                <div class="text-danger small fw-bold"><i class="bi bi-exclamation-triangle me-1"></i>{{ r.error }}</div>
               {% endif %}
             </div>
 
@@ -70,12 +87,12 @@
     </div>
 
     {# Actions #}
-    <div class="d-flex gap-2 mt-4">
-      <a href="/" class="btn btn-success flex-fill">
-        <i class="bi bi-list-ul me-1"></i>Przejdź do listy produktów
+    <div class="d-flex gap-3">
+      <a href="/" class="btn btn-primary flex-grow-1 py-3 h6 mb-0">
+        <i class="bi bi-list-ul me-2"></i>Przejdź do listy
       </a>
-      <a href="/add" class="btn btn-outline-secondary">
-        <i class="bi bi-plus-lg me-1"></i>Dodaj więcej
+      <a href="/add" class="btn btn-outline-secondary py-3 px-4">
+        <i class="bi bi-plus-lg"></i>
       </a>
     </div>
 
