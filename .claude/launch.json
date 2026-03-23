@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "Monitor Cen",
-      "runtimeExecutable": "/Users/a12345678/Pliki/Claude/Monitor cen/.venv/bin/python",
+      "runtimeExecutable": "/usr/local/bin/python3",
       "runtimeArgs": ["app.py"],
       "port": 5000,
       "autoPort": true
