@@ -32,9 +32,10 @@
       <div class="card shadow-sm">
         <div class="card-body p-4">
           <p class="text-muted small mb-3">Wklej link do produktu z jednego z obsługiwanych sklepów:</p>
-          <div class="d-flex gap-2 mb-4">
-            <span class="badge bg-dark px-3 py-2">fnacpro.com</span>
-            <span class="badge bg-dark px-3 py-2">homecinesolutions.fr</span>
+          <div class="d-flex flex-wrap gap-2 mb-4">
+            {% for domain in supported_stores %}
+            <span class="badge bg-dark px-3 py-2">{{ domain }}</span>
+            {% endfor %}
           </div>
           <form method="POST" action="/add" id="form-preview">
             <input type="hidden" name="action" value="preview">
@@ -59,7 +60,7 @@
         <div class="card-body p-4">
           <p class="text-muted small mb-3">
             Wklej linki do produktów — <strong>jeden na linię</strong>.
-            Obsługiwane: <code>fnacpro.com</code>, <code>homecinesolutions.fr</code>
+            Obsługiwane: {% for domain in supported_stores %}<code>{{ domain }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
           </p>
           <form method="POST" action="/add/bulk" id="form-bulk">
             <label class="form-label fw-semibold" for="bulk-urls">Linki produktów</label>

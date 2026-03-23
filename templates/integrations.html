@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}Integracje sklepów — Monitor Cen{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+
+    <div class="d-flex align-items-center gap-2 mb-4">
+      <a href="/" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i>
+      </a>
+      <h5 class="mb-0">Integracje sklepów</h5>
+      <button class="btn btn-warning btn-sm ms-auto px-3" data-bs-toggle="modal" data-bs-target="#modal-add">
+        <i class="bi bi-plus-lg me-1"></i>Dodaj sklep
+      </button>
+    </div>
+
+    {# ── Wbudowane (JSON-LD) ── #}
+    <h6 class="text-muted text-uppercase fw-semibold mb-2" style="font-size:11px;letter-spacing:.8px">
+      Wbudowane (JSON-LD)
+    </h6>
+    <div class="d-flex flex-column gap-2 mb-4">
+      {% for domain, name in json_ld_stores.items() %}
+      <div class="card glass p-3 d-flex flex-row align-items-center gap-3">
+        <div class="rounded-circle d-flex align-items-center justify-content-center"
+             style="width:38px;height:38px;background:rgba(255,255,255,0.12);flex-shrink:0">
+          <i class="bi bi-shop fs-5"></i>
+        </div>
+        <div class="flex-grow-1">
+          <div class="fw-semibold">{{ name }}</div>
+          <div class="text-muted" style="font-size:12px">{{ domain }}</div>
+        </div>
+        <span class="badge bg-success">Aktywny</span>
+      </div>
+      {% endfor %}
+    </div>
+
+    {# ── CSS-selector (własne) ── #}
+    <h6 class="text-muted text-uppercase fw-semibold mb-2" style="font-size:11px;letter-spacing:.8px">
+      Własne (CSS-selector)
+    </h6>
+    {% if css_stores %}
+    <div class="d-flex flex-column gap-2">
+      {% for store in css_stores %}
+      <div class="card glass p-3 d-flex flex-row align-items-center gap-3" id="store-row-{{ loop.index }}">
+        <div class="rounded-circle d-flex align-items-center justify-content-center"
+             style="width:38px;height:38px;background:rgba(255,255,255,0.12);flex-shrink:0">
+          <i class="bi bi-plug fs-5"></i>
+        </div>
+        <div class="flex-grow-1">
+          <div class="fw-semibold">{{ store.display_name }}</div>
+          <div class="text-muted" style="font-size:12px">{{ store.domain }}</div>
+          <div class="text-muted mt-1" style="font-size:11px">
+            Cena: {{ 'brutto (TTC)' if store.price_type == 'gross' else 'netto (HT)' }}
+            {% if store.price_type == 'gross' %} · VAT {{ store.vat_rate }}%{% endif %}
+            · {{ store.currency }}
+          </div>
+        </div>
+        <button class="btn btn-sm btn-outline-danger"
+                onclick="deleteStore('{{ store.domain }}', this)">
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card glass p-4 text-center text-muted">
+      <i class="bi bi-puzzle fs-3 mb-2 opacity-50"></i>
+      <div>Brak własnych sklepów. Kliknij <strong>Dodaj sklep</strong>, aby skonfigurować nowy.</div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+
+{# ── Modal: dodaj nowy sklep ── #}
+<div class="modal fade" id="modal-add" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content glass border-0">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-semibold">
+          <i class="bi bi-plug me-2"></i>Dodaj nowy sklep
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-3">
+        <p class="text-muted small mb-3">
+          Wklej URL strony produktu z nowego sklepu. Otworzy się okno Chromium —
+          kliknij w nim kolejno nazwę, markę i cenę produktu.
+        </p>
+        <label class="form-label fw-semibold" for="new-store-url">URL produktu</label>
+        <div class="input-group mb-1">
+          <span class="input-group-text"><i class="bi bi-link-45deg"></i></span>
+          <input type="url" id="new-store-url" class="form-control"
+                 placeholder="https://nowy-sklep.fr/produkt/123">
+        </div>
+        <div id="modal-error" class="text-danger small mt-2" style="display:none"></div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button type="button" class="btn btn-warning px-4" id="btn-start-wizard">
+          <i class="bi bi-play-fill me-1"></i>Uruchom wizarda
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('btn-start-wizard').addEventListener('click', async function () {
+  const url = document.getElementById('new-store-url').value.trim();
+  const errEl = document.getElementById('modal-error');
+  errEl.style.display = 'none';
+
+  if (!url) {
+    errEl.textContent = 'Wklej URL produktu.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  this.disabled = true;
+  this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Uruchamiam…';
+
+  try {
+    const res = await fetch('/integrations/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      errEl.textContent = data.error || 'Nieznany błąd';
+      errEl.style.display = 'block';
+      this.disabled = false;
+      this.innerHTML = '<i class="bi bi-play-fill me-1"></i>Uruchom wizarda';
+      return;
+    }
+    window.location.href = '/wizard/' + data.session_id;
+  } catch (e) {
+    errEl.textContent = 'Błąd sieci: ' + e.message;
+    errEl.style.display = 'block';
+    this.disabled = false;
+    this.innerHTML = '<i class="bi bi-play-fill me-1"></i>Uruchom wizarda';
+  }
+});
+
+async function deleteStore(domain, btn) {
+  if (!confirm(`Usunąć sklep "${domain}"? Istniejące produkty z tego sklepu nie będą aktualizowane.`)) return;
+  btn.disabled = true;
+  const res = await fetch('/integrations/delete/' + encodeURIComponent(domain), { method: 'POST' });
+  if (res.ok) {
+    btn.closest('[id^="store-row-"]').remove();
+  } else {
+    btn.disabled = false;
+    alert('Błąd usuwania sklepu');
+  }
+}
+</script>
+{% endblock %}

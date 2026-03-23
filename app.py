@@ -3,6 +3,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 import requests as req_lib
 import database as db
 import scraper
+import wizard
 
 app = Flask(__name__)
 app.secret_key = 'price-monitor-2026'
@@ -37,10 +38,16 @@ def index():
 
 # ── Add product ───────────────────────────────────────────────────────────────
 
+def _all_store_domains():
+    """Zwraca listę wszystkich obsługiwanych domen (JSON-LD + CSS-selector)."""
+    return list(scraper.SUPPORTED_STORES.keys()) + list(scraper._css_store_configs.keys())
+
+
 @app.route('/add', methods=['GET', 'POST'])
 def add_product():
+    stores = _all_store_domains()
     if request.method == 'GET':
-        return render_template('add_product.html')
+        return render_template('add_product.html', supported_stores=stores)
 
     action = request.form.get('action')
 
@@ -48,13 +55,13 @@ def add_product():
         url = request.form.get('url', '').strip()
         if not url:
             flash('Podaj URL produktu.', 'warning')
-            return render_template('add_product.html')
+            return render_template('add_product.html', supported_stores=stores)
         try:
             data = scraper.scrape_product(url)
-            return render_template('add_product.html', preview=data)
+            return render_template('add_product.html', preview=data, supported_stores=stores)
         except Exception as e:
             flash(f'Błąd pobierania produktu: {e}', 'danger')
-            return render_template('add_product.html', prefill_url=url)
+            return render_template('add_product.html', prefill_url=url, supported_stores=stores)
 
     if action == 'confirm':
         try:
@@ -72,20 +79,21 @@ def add_product():
             return redirect(url_for('index'))
         except Exception as e:
             flash(f'Błąd zapisu: {e}', 'danger')
-            return render_template('add_product.html')
+            return render_template('add_product.html', supported_stores=stores)
 
-    return render_template('add_product.html')
+    return render_template('add_product.html', supported_stores=stores)
 
 
 # ── Bulk add products ─────────────────────────────────────────────────────────
 
 @app.route('/add/bulk', methods=['POST'])
 def add_bulk():
+    stores = _all_store_domains()
     raw = request.form.get('urls', '')
     urls = [u.strip() for u in raw.splitlines() if u.strip()]
     if not urls:
         flash('Wklej co najmniej jeden URL.', 'warning')
-        return render_template('add_product.html', active_tab='bulk', prefill_urls=raw)
+        return render_template('add_product.html', active_tab='bulk', prefill_urls=raw, supported_stores=stores)
 
     results = []
     for url in urls:
@@ -221,6 +229,112 @@ def product_detail(product_id):
         return redirect(url_for('index'))
     history = db.get_price_history(product_id)
     return render_template('product.html', product=product, history=history)
+
+
+# ── Integrations wizard ───────────────────────────────────────────────────────
+
+@app.route('/integrations')
+def integrations():
+    css_stores = list(scraper._css_store_configs.values())
+    return render_template(
+        'integrations.html',
+        json_ld_stores=scraper.SUPPORTED_STORES,
+        css_stores=css_stores,
+    )
+
+
+@app.route('/integrations/start', methods=['POST'])
+def integrations_start():
+    data = request.get_json(force=True)
+    url = (data.get('url') or '').strip()
+    if not url:
+        return jsonify({'error': 'Podaj URL produktu'}), 400
+
+    # Sprawdź czy domena nie jest już skonfigurowana
+    from urllib.parse import urlparse
+    domain = urlparse(url).netloc.removeprefix('www.')
+    if any(d in url for d in scraper.SUPPORTED_STORES) or domain in scraper._css_store_configs:
+        return jsonify({'error': f'Sklep {domain} jest już skonfigurowany'}), 400
+
+    try:
+        host = request.host  # np. "localhost:5000"
+        port = int(host.split(':')[-1]) if ':' in host else 5000
+        session_id = wizard.start_session(url, flask_port=port)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    return jsonify({'session_id': session_id, 'domain': domain})
+
+
+@app.route('/integrations/status/<session_id>')
+def integrations_status(session_id):
+    status = wizard.get_status(session_id)
+    if 'error' in status:
+        return jsonify(status), 404
+    return jsonify(status)
+
+
+@app.route('/integrations/capture/<session_id>', methods=['POST'])
+def integrations_capture(session_id):
+    data = request.get_json(force=True)
+    field   = data.get('field', '')
+    selector = data.get('selector', '')
+    preview  = data.get('preview', '')
+    result = wizard.capture_field(session_id, field, selector, preview)
+    if not result.get('ok'):
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@app.route('/integrations/test/<session_id>', methods=['POST'])
+def integrations_test(session_id):
+    data       = request.get_json(force=True)
+    price_type = data.get('price_type', 'gross')
+    vat_rate   = int(data.get('vat_rate', 20))
+    currency   = data.get('currency', 'EUR')
+    result = wizard.test_scrape(session_id, price_type, vat_rate, currency)
+    return jsonify(result)
+
+
+@app.route('/integrations/save/<session_id>', methods=['POST'])
+def integrations_save(session_id):
+    data         = request.get_json(force=True)
+    display_name = data.get('display_name', '').strip()
+    price_type   = data.get('price_type', 'gross')
+    vat_rate     = int(data.get('vat_rate', 20))
+    currency     = data.get('currency', 'EUR')
+    if not display_name:
+        return jsonify({'ok': False, 'error': 'Podaj nazwę sklepu'}), 400
+    result = wizard.save_store(session_id, display_name, price_type, vat_rate, currency)
+    return jsonify(result)
+
+
+@app.route('/integrations/cancel/<session_id>', methods=['POST'])
+def integrations_cancel(session_id):
+    wizard.close_session(session_id)
+    return jsonify({'ok': True})
+
+
+@app.route('/wizard/<session_id>')
+def wizard_page(session_id):
+    status = wizard.get_status(session_id)
+    if 'error' in status:
+        flash('Sesja wizarda nie istnieje lub wygasła.', 'warning')
+        return redirect(url_for('integrations'))
+    return render_template('wizard.html', session_id=session_id, domain=status['domain'])
+
+
+@app.route('/integrations/delete/<domain>', methods=['POST'])
+def integrations_delete(domain):
+    from pathlib import Path
+    import json as _json
+    p = Path(__file__).parent / 'stores.json'
+    if p.exists():
+        data = _json.loads(p.read_text(encoding='utf-8'))
+        data['stores'] = [s for s in data['stores'] if s['domain'] != domain]
+        p.write_text(_json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+    scraper.reload_stores()
+    return jsonify({'ok': True})
 
 
 # ── Backfill brands (one-time admin route) ────────────────────────────────────

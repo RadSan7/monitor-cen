@@ -1,13 +1,16 @@
 """
-Scraper for fnacpro.com and homecinesolutions.fr.
+Scraper for fnacpro.com, homecinesolutions.fr and dynamically-configured stores.
 
 Strategy:
   1. Try curl_cffi (fast, no window) — works for homecinesolutions.fr
   2. If blocked (403/empty), fall back to Playwright headless=False
      — works for fnacpro.com which detects headless Chromium
+  3. CSS-selector stores (added via wizard) use BeautifulSoup after fetch.
 """
 
 import json
+import pathlib
+import re
 import time
 
 from bs4 import BeautifulSoup
@@ -18,6 +21,26 @@ SUPPORTED_STORES = {
     'fnacpro.com': 'Fnac Pro',
     'homecinesolutions.fr': 'HomeCine Solutions',
 }
+
+# Dynamicznie ładowane z stores.json (sklepy dodane przez wizard)
+_css_store_configs: dict[str, dict] = {}
+_STORES_JSON = pathlib.Path(__file__).parent / 'stores.json'
+
+
+def reload_stores():
+    """Ładuje/przeładowuje konfiguracje CSS-selector z stores.json."""
+    global _css_store_configs
+    if not _STORES_JSON.exists():
+        _css_store_configs = {}
+        return
+    try:
+        data = json.loads(_STORES_JSON.read_text(encoding='utf-8'))
+        _css_store_configs = {s['domain']: s for s in data.get('stores', [])}
+    except Exception:
+        _css_store_configs = {}
+
+
+reload_stores()
 
 _UNAVAILABLE_AVAILABILITY = {
     'http://schema.org/OutOfStock',
@@ -36,11 +59,17 @@ _UA = (
 
 
 def detect_store(url: str) -> str:
+    # JSON-LD sklepy mają priorytet (hardcoded)
     for domain, name in SUPPORTED_STORES.items():
         if domain in url:
             return name
+    # CSS-selector sklepy z wizard
+    for domain, config in _css_store_configs.items():
+        if domain in url:
+            return config['display_name']
+    all_domains = list(SUPPORTED_STORES.keys()) + list(_css_store_configs.keys())
     raise ValueError(
-        f"Nieobsługiwany sklep. Obsługiwane: {', '.join(SUPPORTED_STORES.keys())}"
+        f"Nieobsługiwany sklep. Obsługiwane: {', '.join(all_domains)}"
     )
 
 
@@ -105,7 +134,8 @@ def _fetch_curl(url: str) -> str | None:
 
 def _playwright_once(url: str, headless: bool) -> str:
     """Single Playwright fetch attempt."""
-    with sync_playwright() as pw:
+    pw = sync_playwright().start()
+    try:
         args = ['--disable-blink-features=AutomationControlled']
         if not headless:
             # Move window far off-screen so it doesn't appear on the desktop
@@ -144,6 +174,8 @@ def _playwright_once(url: str, headless: bool) -> str:
             )
         html = page.content()
         browser.close()
+    finally:
+        pw.stop()
     return html
 
 
@@ -163,12 +195,74 @@ def scrape_product(url: str) -> dict:
     """
     store = detect_store(url)
 
+    # Sprawdź czy sklep używa CSS-selector (dodany przez wizard)
+    css_config = next(
+        (cfg for domain, cfg in _css_store_configs.items() if domain in url),
+        None,
+    )
+
     # 1. Fast path — curl_cffi
     html = _fetch_curl(url)
 
     # 2. Fallback — visible Playwright browser
     if html is None or '<html><head></head><body></body></html>' in html:
-        html = _fetch_playwright(url)
+        if css_config:
+            html = _fetch_playwright(url)
+        else:
+            html = _fetch_playwright(url)
+
+    if css_config:
+        return _extract_css(html, url, store, css_config)
 
     data = _parse_json_ld(html)
     return _extract_product(data, url, store)
+
+
+def _extract_css(html: str, url: str, store: str, config: dict) -> dict:
+    """Ekstrakcja danych produktu przy użyciu CSS-selektorów z konfiguracji."""
+    soup = BeautifulSoup(html, 'lxml')
+    selectors = config.get('selectors', {})
+
+    def _text(sel):
+        if not sel:
+            return None
+        el = soup.select_one(sel)
+        return el.get_text(strip=True) if el else None
+
+    name  = _text(selectors.get('name'))  or 'Nieznany produkt'
+    brand = _text(selectors.get('brand')) or ''
+
+    raw_price = _text(selectors.get('price')) or ''
+    price = _parse_css_price(raw_price, config.get('price_type'), config.get('vat_rate', 20))
+
+    return {
+        'name':          name,
+        'url':           url,
+        'store':         store,
+        'thumbnail_url': None,
+        'price':         price,
+        'currency':      config.get('currency', 'EUR'),
+        'brand':         brand,
+    }
+
+
+def _parse_css_price(raw: str, price_type: str, vat_rate: int) -> float | None:
+    """Wyciąga float z tekstu ceny; obsługuje '1 234,56 €' i '1234.56'."""
+    m = re.search(r'[\d\s\u00a0\u202f]+[,.]?\d*', raw)
+    if not m:
+        return None
+    s = m.group().replace(' ', '').replace('\u00a0', '').replace('\u202f', '')
+    if ',' in s and '.' in s:
+        if s.rfind(',') > s.rfind('.'):
+            s = s.replace('.', '').replace(',', '.')
+        else:
+            s = s.replace(',', '')
+    elif ',' in s:
+        s = s.replace(',', '.')
+    try:
+        price = float(s)
+    except ValueError:
+        return None
+    if price_type == 'gross' and vat_rate:
+        price = round(price / (1 + vat_rate / 100), 2)
+    return price
