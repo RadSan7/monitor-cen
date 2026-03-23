@@ -94,6 +94,10 @@ def start_session(url: str, flask_port: int = 5000) -> str:
     overlay_js = overlay_js.replace('__FLASK_PORT__', str(flask_port))
     page.evaluate(overlay_js)
 
+    # Pobierz HTML TERAZ — w tym samym wątku co Playwright.
+    # page.content() nie może być wywołane z innego wątku (Flask threading).
+    html_cache = page.content()
+
     sess = WizardSession(
         session_id=session_id,
         url=url,
@@ -101,6 +105,7 @@ def start_session(url: str, flask_port: int = 5000) -> str:
         pw=pw,
         browser=browser,
         page=page,
+        html_cache=html_cache,
     )
     with _lock:
         _sessions[session_id] = sess
@@ -165,13 +170,6 @@ def capture_field(session_id: str, field: str, selector: str, preview: str) -> d
         next_step = NEXT_STEP.get(sess.step, 'complete')
         sess.step = next_step
 
-        # Cache HTML gdy wszystkie pola zebrane
-        if next_step == 'complete':
-            try:
-                sess.html_cache = sess.page.content()
-            except Exception:
-                pass
-
     return {'ok': True, 'next_step': next_step}
 
 
@@ -185,10 +183,7 @@ def test_scrape(session_id: str, price_type: str, vat_rate: int, currency: str) 
 
     html = sess.html_cache
     if not html:
-        try:
-            html = sess.page.content()
-        except Exception as e:
-            return {'ok': False, 'error': f'Nie można pobrać HTML: {e}'}
+        return {'ok': False, 'error': 'Brak cache HTML. Spróbuj ponownie od początku.'}
 
     soup = BeautifulSoup(html, 'lxml')
     extracted = {}
