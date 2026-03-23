@@ -57,6 +57,12 @@
       <strong id="__wiz_lbl" style="color:#fbbf24">NAZWĘ PRODUKTU</strong>
     </div>
     <div id="__wiz_list" style="font-size:12px;opacity:0.75;min-height:20px"></div>
+    <div id="__wiz_skip" style="display:none;margin-top:10px">
+      <button id="__wiz_skip_btn" style="
+        background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);
+        color:#fff;border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer;width:100%
+      ">Pomiń — sklep nie ma marki</button>
+    </div>
     <div id="__wiz_done" style="display:none;text-align:center;padding:12px 0">
       <div style="font-size:30px;margin-bottom:8px">✅</div>
       <strong style="font-size:15px">Gotowe!</strong><br>
@@ -140,8 +146,10 @@
   function advanceStep() {
     const badge = document.getElementById('__wiz_badge');
     const lbl   = document.getElementById('__wiz_lbl');
+    const skip  = document.getElementById('__wiz_skip');
     if (badge) badge.textContent = `Krok ${currentIdx + 1} / 3`;
     if (lbl)   lbl.textContent   = LABELS[FIELDS[currentIdx]];
+    if (skip)  skip.style.display = (FIELDS[currentIdx] === 'brand') ? 'block' : 'none';
   }
 
   function showDone() {
@@ -190,6 +198,26 @@
       advanceStep();
     }
   }
+
+  document.getElementById('__wiz_skip_btn')?.addEventListener('click', function(e) {
+    e.stopPropagation();
+    const field = 'brand';
+    captured[field] = { selector: '', preview: '(brak marki)' };
+    refreshCaptured();
+
+    fetch(BASE_URL + '/integrations/capture/' + SESSION_ID, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ field, selector: '', preview: '(brak marki)' }),
+    }).catch(() => {});
+
+    currentIdx++;
+    if (currentIdx >= FIELDS.length) {
+      showDone();
+    } else {
+      advanceStep();
+    }
+  });
 
   document.addEventListener('mouseover', onOver,   true);
   document.addEventListener('click',     onClick,  true);

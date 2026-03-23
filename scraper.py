@@ -57,7 +57,6 @@ _UA = (
     'Chrome/122.0.0.0 Safari/537.36'
 )
 
-
 def detect_store(url: str) -> str:
     # JSON-LD sklepy mają priorytet (hardcoded)
     for domain, name in SUPPORTED_STORES.items():
@@ -138,12 +137,8 @@ def _playwright_once(url: str, headless: bool) -> str:
     try:
         args = ['--disable-blink-features=AutomationControlled']
         if not headless:
-            # Move window far off-screen so it doesn't appear on the desktop
             args += ['--window-position=-10000,-10000', '--window-size=1280,800']
-        browser = pw.chromium.launch(
-            headless=headless,
-            args=args,
-        )
+        browser = pw.chromium.launch(headless=headless, args=args)
         context = browser.new_context(
             user_agent=_UA,
             locale='fr-FR',
@@ -154,7 +149,6 @@ def _playwright_once(url: str, headless: bool) -> str:
         )
         page = context.new_page()
         if not headless:
-            # Minimalizuj okno przez CDP żeby nie zakłócać pracy
             try:
                 cdp = context.new_cdp_session(page)
                 info = cdp.send('Browser.getWindowForTarget')
@@ -235,11 +229,15 @@ def _extract_css(html: str, url: str, store: str, config: dict) -> dict:
     raw_price = _text(selectors.get('price')) or ''
     price = _parse_css_price(raw_price, config.get('price_type'), config.get('vat_rate', 20))
 
+    # Thumbnail: og:image meta tag (present on most e-commerce sites)
+    og_img = soup.find('meta', property='og:image')
+    thumbnail_url = og_img['content'] if og_img and og_img.get('content') else None
+
     return {
         'name':          name,
         'url':           url,
         'store':         store,
-        'thumbnail_url': None,
+        'thumbnail_url': thumbnail_url,
         'price':         price,
         'currency':      config.get('currency', 'EUR'),
         'brand':         brand,
