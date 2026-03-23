@@ -8,6 +8,22 @@ import wizard
 app = Flask(__name__)
 app.secret_key = 'price-monitor-2026'
 
+
+@app.after_request
+def _cors(response):
+    """Zezwól na cross-origin fetch z wstrzykniętego overlay JS (Chromium → localhost)."""
+    response.headers['Access-Control-Allow-Origin']  = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    return response
+
+
+@app.route('/integrations/capture/<session_id>', methods=['OPTIONS'])
+@app.route('/integrations/ping', methods=['OPTIONS'])
+def _cors_preflight(**kwargs):
+    """Obsługa CORS preflight dla endpointów wywoływanych przez overlay JS."""
+    return app.make_response(('', 204))
+
 THUMBS_DIR = os.path.join(os.path.dirname(__file__), 'static', 'thumbs')
 os.makedirs(THUMBS_DIR, exist_ok=True)
 
