@@ -19,6 +19,9 @@
   let currentIdx = 0;
   const captured = {};
 
+  // ── Warmup ping — wywołuje dialog uprawnień macOS PRZED pierwszym kliknięciem
+  fetch(BASE_URL + '/integrations/ping', { method: 'POST' }).catch(() => {});
+
   // ── Panel ──────────────────────────────────────────────────────────────────
   const style = document.createElement('style');
   style.textContent = `

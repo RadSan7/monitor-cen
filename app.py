@@ -243,6 +243,12 @@ def integrations():
     )
 
 
+@app.route('/integrations/ping', methods=['POST'])
+def integrations_ping():
+    """Warmup endpoint — wyzwala dialog uprawnień macOS przed pierwszym capture."""
+    return jsonify({'ok': True})
+
+
 @app.route('/integrations/start', methods=['POST'])
 def integrations_start():
     data = request.get_json(force=True)
