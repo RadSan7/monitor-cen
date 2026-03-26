@@ -12,7 +12,19 @@
       "Bash(chmod +x \"/Users/a12345678/Pliki/Claude/Monitor cen/start-monitor.command\")",
       "Bash(cp \"/Users/a12345678/Pliki/Claude/Monitor cen/start-monitor.command\" \"/Users/a12345678/Desktop/Monitor Cen.command\")",
       "Bash(chmod +x \"/Users/a12345678/Desktop/Monitor Cen.command\")",
-      "Bash(python3 -c \":*)"
+      "Bash(python3 -c \":*)",
+      "Read(//private/tmp/**)",
+      "Bash(unzip -o \"/Users/a12345678/Downloads/monitor_cen_redesign.zip\" -d monitor_cen_redesign)",
+      "Bash(cp /tmp/monitor_cen_redesign/templates/base.html \"/Users/a12345678/Pliki/Claude/Monitor cen/templates/base.html\")",
+      "Bash(cp /tmp/monitor_cen_redesign/templates/add_product.html \"/Users/a12345678/Pliki/Claude/Monitor cen/templates/add_product.html\")",
+      "Bash(cp /tmp/monitor_cen_redesign/templates/bulk_result.html \"/Users/a12345678/Pliki/Claude/Monitor cen/templates/bulk_result.html\")",
+      "Bash(cp /tmp/monitor_cen_redesign/templates/product.html \"/Users/a12345678/Pliki/Claude/Monitor cen/templates/product.html\")",
+      "Bash(.venv/bin/pip show:*)",
+      "Bash(.venv/bin/python -c \"import app; import wizard; import scraper; print\\(''OK''\\)\")",
+      "Bash(source venv/bin/activate)",
+      "Bash(python3 -c \"import bs4\")",
+      "Bash(find /Users/a12345678 -path */site-packages/bs4 -type d)",
+      "Bash(.venv/bin/python3 -c \":*)"
     ]
   }
 }

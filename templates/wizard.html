@@ -1,0 +1,392 @@
+{% extends "base.html" %}
+{% block title %}Wizard integracji — Monitor Cen{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-6 col-md-8">
+
+    <div class="d-flex align-items-center gap-2 mb-4">
+      <a href="/integrations" class="btn btn-outline-secondary btn-sm" id="btn-cancel">
+        <i class="bi bi-arrow-left"></i>
+      </a>
+      <h5 class="mb-0">Wizard integracji <span class="text-muted fw-normal fs-6">/ {{ domain }}</span></h5>
+    </div>
+
+    {# ── Pasek kroków ── #}
+    <div class="d-flex align-items-center gap-2 mb-4">
+      {% for label in ['Wybór elementów', 'Konfiguracja', 'Test'] %}
+      <div class="d-flex align-items-center gap-2 flex-grow-1">
+        <div class="step-dot d-flex align-items-center justify-content-center rounded-circle fw-bold"
+             id="dot-{{ loop.index }}"
+             style="width:30px;height:30px;font-size:13px;
+             background:{% if loop.first %}#0070f3{% else %}rgba(255,255,255,0.12){% endif %};
+             color:{% if loop.first %}#fff{% else %}var(--text-secondary,#888){% endif %};
+             flex-shrink:0;transition:all .3s">
+          {{ loop.index }}
+        </div>
+        <span class="small {% if loop.first %}fw-semibold{% else %}text-muted{% endif %}"
+              id="step-label-{{ loop.index }}"
+              style="transition:all .3s">{{ label }}</span>
+        {% if not loop.last %}<div class="flex-grow-1" style="height:2px;background:rgba(255,255,255,0.1)"></div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
+    {# ── Krok 1: Wybór elementów (polling) ── #}
+    <div id="panel-select">
+      <div class="card glass p-4 mb-3">
+        <div class="d-flex gap-3 align-items-start mb-3">
+          <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+               style="width:44px;height:44px;background:rgba(0,112,243,0.15)">
+            <i class="bi bi-cursor-fill text-primary fs-5"></i>
+          </div>
+          <div>
+            <div class="fw-semibold mb-1">Okno Chromium zostało otwarte</div>
+            <p class="text-muted small mb-0">
+              Kliknij kolejno trzy elementy na stronie sklepu zgodnie z instrukcją w panelu.
+              Okno czeka na Twoje kliknięcia.
+            </p>
+          </div>
+        </div>
+
+        {# Postęp klikania #}
+        <div class="d-flex flex-column gap-2 mb-3" id="field-list">
+          {% for field, label, icon in [('name','Nazwa produktu','tag'), ('brand','Marka / producent','building'), ('price','Cena','currency-euro')] %}
+          <div class="d-flex align-items-center gap-2 p-2 rounded" id="field-row-{{ field }}"
+               style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08)">
+            <div class="d-flex align-items-center justify-content-center rounded-circle flex-shrink-0"
+                 id="field-icon-{{ field }}"
+                 style="width:28px;height:28px;background:rgba(255,255,255,0.1)">
+              <i class="bi bi-{{ icon }} small"></i>
+            </div>
+            <div class="flex-grow-1">
+              <div class="fw-semibold small">{{ label }}</div>
+              <div class="text-muted" style="font-size:11px" id="field-preview-{{ field }}">Oczekuję…</div>
+            </div>
+            <div id="field-check-{{ field }}" style="display:none">
+              <i class="bi bi-check-circle-fill text-success"></i>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <div id="browser-dead-alert" class="alert alert-danger py-2 small mb-0" style="display:none">
+          <i class="bi bi-exclamation-triangle-fill me-1"></i>
+          Okno Chromium zostało zamknięte. Zacznij od nowa.
+          <a href="/integrations" class="alert-link ms-1">Wróć do integracji</a>
+        </div>
+      </div>
+
+      <div class="text-center">
+        <button class="btn btn-outline-secondary btn-sm" onclick="cancelWizard()">
+          <i class="bi bi-x-lg me-1"></i>Anuluj
+        </button>
+      </div>
+    </div>
+
+    {# ── Krok 2: Konfiguracja ── #}
+    <div id="panel-config" style="display:none">
+      <div class="card glass p-4 mb-3">
+        <h6 class="fw-semibold mb-3"><i class="bi bi-sliders me-2"></i>Konfiguracja ceny i sklepu</h6>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold small">Typ ceny na stronie</label>
+          <div class="d-flex gap-3">
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="price_type" id="pt-gross" value="gross" checked>
+              <label class="form-check-label small" for="pt-gross">
+                Brutto (TTC) — podziel przez VAT
+              </label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="price_type" id="pt-net" value="net">
+              <label class="form-check-label small" for="pt-net">
+                Netto (HT) — użyj wprost
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3" id="vat-row">
+          <div class="col-6">
+            <label class="form-label fw-semibold small" for="vat-rate">Stawka VAT (%)</label>
+            <input type="number" id="vat-rate" class="form-control" value="20" min="0" max="99" step="1">
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-semibold small" for="currency">Waluta</label>
+            <select id="currency" class="form-select">
+              <option value="EUR" selected>EUR</option>
+              <option value="GBP">GBP</option>
+              <option value="USD">USD</option>
+              <option value="PLN">PLN</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold small" for="display-name">Nazwa sklepu (wyświetlana)</label>
+          <input type="text" id="display-name" class="form-control" placeholder="np. Amazon France">
+        </div>
+
+        <div id="config-error" class="alert alert-danger py-2 small mb-3" style="display:none"></div>
+
+        <button class="btn btn-warning w-100" id="btn-test">
+          <i class="bi bi-play-fill me-1"></i>Przetestuj scraping
+        </button>
+      </div>
+    </div>
+
+    {# ── Krok 3: Wynik testu ── #}
+    <div id="panel-result" style="display:none">
+      <div class="card glass p-4 mb-3">
+        <h6 class="fw-semibold mb-3"><i class="bi bi-check2-square me-2"></i>Wynik testu</h6>
+
+        <div id="result-ok" style="display:none">
+          <div class="card p-3 mb-3" style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.25)">
+            <div class="fw-semibold mb-1" id="res-name">—</div>
+            <div class="text-muted small mb-2" id="res-brand">—</div>
+            <div class="fw-bold fs-4 text-success" id="res-price">—</div>
+          </div>
+          <div id="save-error" class="alert alert-danger py-2 small mb-3" style="display:none"></div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary flex-fill" onclick="goBackToConfig()">
+              <i class="bi bi-arrow-left me-1"></i>Popraw
+            </button>
+            <button class="btn btn-success flex-fill" id="btn-save">
+              <i class="bi bi-floppy me-1"></i>Zapisz sklep
+            </button>
+          </div>
+        </div>
+
+        <div id="result-error" style="display:none">
+          <div class="alert alert-danger py-2 small mb-3" id="result-error-msg"></div>
+          <button class="btn btn-outline-secondary w-100" onclick="goBackToConfig()">
+            <i class="bi bi-arrow-left me-1"></i>Wróć do konfiguracji
+          </button>
+        </div>
+      </div>
+    </div>
+
+    {# ── Sukces ── #}
+    <div id="panel-success" style="display:none">
+      <div class="card glass p-5 text-center mb-3">
+        <div style="font-size:48px;margin-bottom:12px">🎉</div>
+        <h5 class="fw-semibold mb-2">Sklep dodany!</h5>
+        <p class="text-muted small mb-4" id="success-msg"></p>
+        <div class="d-flex gap-2 justify-content-center">
+          <a href="/integrations" class="btn btn-outline-secondary">
+            <i class="bi bi-plug me-1"></i>Integracje
+          </a>
+          <a href="/add" class="btn btn-warning">
+            <i class="bi bi-plus-lg me-1"></i>Dodaj produkt
+          </a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SESSION_ID = '{{ session_id }}';
+let pollTimer = null;
+let currentStep = 1;
+
+// ── Polling ────────────────────────────────────────────────────────────────
+
+function startPolling() {
+  pollTimer = setInterval(poll, 1000);
+}
+
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+async function poll() {
+  try {
+    const res = await fetch('/integrations/status/' + SESSION_ID);
+    if (!res.ok) { stopPolling(); return; }
+    const data = await res.json();
+    updateSelectPanel(data);
+
+    if (data.step === 'complete') {
+      stopPolling();
+      showConfigPanel();
+    } else if (data.step === 'error' || !data.browser_alive) {
+      stopPolling();
+      document.getElementById('browser-dead-alert').style.display = 'block';
+    }
+  } catch (e) {
+    // sieć chwilowo niedostępna — spróbuj ponownie
+  }
+}
+
+function updateSelectPanel(data) {
+  const fields = ['name', 'brand', 'price'];
+  for (const f of fields) {
+    const info = data.captured[f];
+    if (info) {
+      const row   = document.getElementById('field-row-' + f);
+      const prev  = document.getElementById('field-preview-' + f);
+      const check = document.getElementById('field-check-' + f);
+      const icon  = document.getElementById('field-icon-' + f);
+      if (row)   row.style.borderColor = 'rgba(16,185,129,0.4)';
+      if (prev)  prev.textContent = info.preview.slice(0, 60);
+      if (check) check.style.display = 'block';
+      if (icon)  { icon.style.background = 'rgba(16,185,129,0.2)'; icon.innerHTML = '<i class="bi bi-check small text-success"></i>'; }
+    }
+  }
+}
+
+// ── Przejścia między krokami ───────────────────────────────────────────────
+
+function setStepActive(n) {
+  for (let i = 1; i <= 3; i++) {
+    const dot   = document.getElementById('dot-' + i);
+    const label = document.getElementById('step-label-' + i);
+    const active = (i === n);
+    const done   = (i < n);
+    dot.style.background = done ? 'rgba(16,185,129,0.8)' : (active ? '#0070f3' : 'rgba(255,255,255,0.12)');
+    dot.style.color      = (done || active) ? '#fff' : 'var(--text-secondary,#888)';
+    dot.innerHTML        = done ? '<i class="bi bi-check-lg" style="font-size:13px"></i>' : String(i);
+    if (label) {
+      label.className = active ? 'small fw-semibold' : 'small text-muted';
+    }
+  }
+  currentStep = n;
+}
+
+function showConfigPanel() {
+  document.getElementById('panel-select').style.display = 'none';
+  document.getElementById('panel-config').style.display = 'block';
+  setStepActive(2);
+}
+
+function goBackToConfig() {
+  document.getElementById('panel-result').style.display = 'none';
+  document.getElementById('panel-config').style.display = 'block';
+  setStepActive(2);
+}
+
+// ── Pola konfiguracji ──────────────────────────────────────────────────────
+
+document.querySelectorAll('input[name="price_type"]').forEach(r => {
+  r.addEventListener('change', function () {
+    document.getElementById('vat-row').style.display =
+      this.value === 'gross' ? '' : 'none';
+  });
+});
+
+// ── Test ───────────────────────────────────────────────────────────────────
+
+document.getElementById('btn-test').addEventListener('click', async function () {
+  const errEl = document.getElementById('config-error');
+  errEl.style.display = 'none';
+
+  const displayName = document.getElementById('display-name').value.trim();
+  if (!displayName) {
+    errEl.textContent = 'Podaj nazwę sklepu.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  this.disabled = true;
+  this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Testuję…';
+
+  const price_type = document.querySelector('input[name="price_type"]:checked').value;
+  const vat_rate   = parseInt(document.getElementById('vat-rate').value) || 20;
+  const currency   = document.getElementById('currency').value;
+
+  try {
+    const res  = await fetch('/integrations/test/' + SESSION_ID, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ price_type, vat_rate, currency }),
+    });
+    const data = await res.json();
+
+    document.getElementById('panel-config').style.display = 'none';
+    document.getElementById('panel-result').style.display = 'block';
+    setStepActive(3);
+
+    if (data.ok) {
+      const r = data.result;
+      document.getElementById('res-name').textContent  = r.name  || '—';
+      document.getElementById('res-brand').textContent = r.brand ? '🏷 ' + r.brand : '';
+      document.getElementById('res-price').textContent =
+        r.price != null ? r.price.toFixed(2) + ' ' + r.currency : 'Brak ceny';
+      document.getElementById('result-ok').style.display    = 'block';
+      document.getElementById('result-error').style.display = 'none';
+    } else {
+      document.getElementById('result-error-msg').textContent = data.error || 'Nieznany błąd';
+      document.getElementById('result-ok').style.display    = 'none';
+      document.getElementById('result-error').style.display = 'block';
+    }
+  } catch (e) {
+    errEl.textContent = 'Błąd sieci: ' + e.message;
+    errEl.style.display = 'block';
+  } finally {
+    this.disabled = false;
+    this.innerHTML = '<i class="bi bi-play-fill me-1"></i>Przetestuj scraping';
+  }
+});
+
+// ── Zapis ──────────────────────────────────────────────────────────────────
+
+document.getElementById('btn-save').addEventListener('click', async function () {
+  const saveErr = document.getElementById('save-error');
+  saveErr.style.display = 'none';
+
+  this.disabled = true;
+  this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Zapisuję…';
+
+  const display_name = document.getElementById('display-name').value.trim();
+  const price_type   = document.querySelector('input[name="price_type"]:checked').value;
+  const vat_rate     = parseInt(document.getElementById('vat-rate').value) || 20;
+  const currency     = document.getElementById('currency').value;
+
+  try {
+    const res  = await fetch('/integrations/save/' + SESSION_ID, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ display_name, price_type, vat_rate, currency }),
+    });
+    const data = await res.json();
+
+    if (data.ok) {
+      document.getElementById('panel-result').style.display  = 'none';
+      document.getElementById('panel-success').style.display = 'block';
+      document.getElementById('success-msg').textContent =
+        `Sklep "${display_name}" został zapisany. Możesz teraz dodawać produkty z tego sklepu.`;
+    } else {
+      saveErr.textContent = data.error || 'Błąd zapisu';
+      saveErr.style.display = 'block';
+    }
+  } catch (e) {
+    saveErr.textContent = 'Błąd sieci: ' + e.message;
+    saveErr.style.display = 'block';
+  } finally {
+    this.disabled = false;
+    this.innerHTML = '<i class="bi bi-floppy me-1"></i>Zapisz sklep';
+  }
+});
+
+// ── Anuluj ─────────────────────────────────────────────────────────────────
+
+async function cancelWizard() {
+  stopPolling();
+  await fetch('/integrations/cancel/' + SESSION_ID, { method: 'POST' }).catch(() => {});
+  window.location.href = '/integrations';
+}
+
+document.getElementById('btn-cancel').addEventListener('click', async function (e) {
+  e.preventDefault();
+  await cancelWizard();
+});
+
+// ── Start ──────────────────────────────────────────────────────────────────
+startPolling();
+</script>
+{% endblock %}
