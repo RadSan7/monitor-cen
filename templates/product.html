@@ -36,6 +36,37 @@
               {{ "%.2f"|format(product.current_price) }} <small class="fs-4">{{ product.currency }}</small>
             {% else %}—{% endif %}
           </div>
+          {# ── Badge 24h zmiany ceny ── #}
+          {% if product.price_changed_at and product.previous_price is not none and product.current_price is not none %}
+          <div id="price-change-24h" class="mt-3 d-none">
+            {% set diff = product.current_price - product.previous_price %}
+            {% set pct  = (diff / product.previous_price * 100) if product.previous_price else 0 %}
+            <div class="d-inline-flex align-items-center gap-2 px-3 py-2 rounded-3
+                        {% if diff < 0 %}bg-success-subtle text-success{% else %}bg-danger-subtle text-danger{% endif %}">
+              <i class="bi bi-lightning-charge-fill"></i>
+              <span class="fw-semibold">
+                {% if diff < 0 %}Spadek{% else %}Wzrost{% endif %}
+                ceny w ciągu ostatnich 24h:
+              </span>
+              <span class="fw-bold">
+                {{ "%.2f"|format(product.previous_price) }} → {{ "%.2f"|format(product.current_price) }} {{ product.currency }}
+              </span>
+              <span class="badge {% if diff < 0 %}bg-success{% else %}bg-danger{% endif %}">
+                {% if diff < 0 %}<i class="bi bi-arrow-down-short"></i>{% else %}<i class="bi bi-arrow-up-short"></i>{% endif %}
+                {{ "%.1f"|format(pct|abs) }}%
+              </span>
+            </div>
+          </div>
+          <script>
+          (function(){
+            var changedAt = {{ product.price_changed_at | tojson }};
+            var msAgo = Date.now() - new Date(changedAt).getTime();
+            if (msAgo < 86400000) {
+              document.getElementById('price-change-24h').classList.remove('d-none');
+            }
+          })();
+          </script>
+          {% endif %}
         </div>
         <div class="col-md-3">
            <div class="d-grid gap-2">

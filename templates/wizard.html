@@ -43,15 +43,16 @@
           <div>
             <div class="fw-semibold mb-1">Okno Chromium zostało otwarte</div>
             <p class="text-muted small mb-0">
-              Kliknij kolejno trzy elementy na stronie sklepu zgodnie z instrukcją w panelu.
-              Okno czeka na Twoje kliknięcia.
+              W panelu w oknie Chromium: kliknij <strong>Wybierz</strong> przy danym polu,
+              następnie kliknij odpowiedni element na stronie sklepu.
+              Gdy masz wszystkie pola — kliknij <strong>Gotowe</strong> w panelu.
             </p>
           </div>
         </div>
 
         {# Postęp klikania #}
         <div class="d-flex flex-column gap-2 mb-3" id="field-list">
-          {% for field, label, icon in [('name','Nazwa produktu','tag'), ('brand','Marka / producent','building'), ('price','Cena','currency-euro')] %}
+          {% for field, label, icon in [('name','Nazwa produktu','tag'), ('brand','Marka / producent','building'), ('price','Cena','currency-euro'), ('thumbnail','Zdjęcie produktu','image')] %}
           <div class="d-flex align-items-center gap-2 p-2 rounded" id="field-row-{{ field }}"
                style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08)">
             <div class="d-flex align-items-center justify-content-center rounded-circle flex-shrink-0"
@@ -224,7 +225,7 @@ async function poll() {
 }
 
 function updateSelectPanel(data) {
-  const fields = ['name', 'brand', 'price'];
+  const fields = ['name', 'brand', 'price', 'thumbnail'];
   for (const f of fields) {
     const info = data.captured[f];
     if (info) {

@@ -550,3 +550,15 @@ body.dark-mode ::-webkit-scrollbar-thumb {
     border: 1px solid var(--glass-border);
     margin-top: 20px;
 }
+
+/* ── Historia ──────────────────────────────────────────────────────────────── */
+.hist-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+}

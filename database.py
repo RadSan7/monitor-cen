@@ -1,3 +1,4 @@
+import json
 import os
 import sqlite3
 from datetime import datetime
@@ -23,6 +24,8 @@ def _migrate(conn):
         conn.execute("ALTER TABLE products ADD COLUMN brand TEXT DEFAULT ''")
     if 'is_favorite' not in cols:
         conn.execute("ALTER TABLE products ADD COLUMN is_favorite INTEGER DEFAULT 0")
+    if 'price_changed_at' not in cols:
+        conn.execute("ALTER TABLE products ADD COLUMN price_changed_at TEXT")
 
 
 def init_db():
@@ -50,8 +53,38 @@ def init_db():
                 checked_at TEXT DEFAULT (datetime('now')),
                 FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
             );
+
+            CREATE TABLE IF NOT EXISTS event_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT NOT NULL,
+                product_id INTEGER,
+                product_name TEXT,
+                product_store TEXT,
+                run_id TEXT,
+                details TEXT,
+                created_at TEXT DEFAULT (datetime('now'))
+            );
         ''')
         _migrate(conn)
+
+
+def log_event(event_type: str, product_id=None, product_name=None,
+              product_store=None, run_id=None, details: dict = None):
+    with get_db() as conn:
+        conn.execute(
+            '''INSERT INTO event_log
+               (event_type, product_id, product_name, product_store, run_id, details)
+               VALUES (?, ?, ?, ?, ?, ?)''',
+            (event_type, product_id, product_name, product_store,
+             run_id, json.dumps(details or {}))
+        )
+
+
+def get_event_log(limit: int = 1000) -> list:
+    with get_db() as conn:
+        return conn.execute(
+            'SELECT * FROM event_log ORDER BY id DESC LIMIT ?', (limit,)
+        ).fetchall()
 
 
 def get_all_products():
@@ -106,25 +139,30 @@ def update_price(product_id, new_price, brand=None):
                 )
         else:
             new_min = min(product['min_price'] or new_price, new_price)
+            price_changed = (product['current_price'] is not None and
+                             product['current_price'] != new_price)
+            changed_at = now if price_changed else product['price_changed_at']
             if brand is not None:
                 conn.execute('''
                     UPDATE products
-                    SET previous_price = current_price,
-                        current_price  = ?,
-                        min_price      = ?,
-                        last_updated   = ?,
-                        brand          = ?
+                    SET previous_price  = current_price,
+                        current_price   = ?,
+                        min_price       = ?,
+                        last_updated    = ?,
+                        brand           = ?,
+                        price_changed_at = ?
                     WHERE id = ?
-                ''', (new_price, new_min, now, brand, product_id))
+                ''', (new_price, new_min, now, brand, changed_at, product_id))
             else:
                 conn.execute('''
                     UPDATE products
-                    SET previous_price = current_price,
-                        current_price  = ?,
-                        min_price      = ?,
-                        last_updated   = ?
+                    SET previous_price  = current_price,
+                        current_price   = ?,
+                        min_price       = ?,
+                        last_updated    = ?,
+                        price_changed_at = ?
                     WHERE id = ?
-                ''', (new_price, new_min, now, product_id))
+                ''', (new_price, new_min, now, changed_at, product_id))
             conn.execute(
                 'INSERT INTO price_history (product_id, price, checked_at) VALUES (?, ?, ?)',
                 (product_id, new_price, now)

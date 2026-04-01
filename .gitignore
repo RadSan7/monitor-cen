@@ -36,3 +36,6 @@ Thumbs.db
 
 # Claude Code worktrees
 .claude/worktrees/
+
+# Playwright persistent browser profile
+.chrome_profile/

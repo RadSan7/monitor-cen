@@ -1,4 +1,11 @@
+import json
 import os
+import signal
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+from urllib.parse import urlparse
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 import requests as req_lib
 import database as db
@@ -7,6 +14,29 @@ import wizard
 
 app = Flask(__name__)
 app.secret_key = 'price-monitor-2026'
+
+def _update_one_product(p) -> dict:
+    """Aktualizuje jeden produkt (używane przez /update-all)."""
+    try:
+        data = scraper.scrape_product(p['url'])
+        db.update_price(p['id'], data['price'])
+        return {'id': p['id'], 'success': True, 'price': data['price']}
+    except Exception as e:
+        return {'id': p['id'], 'success': False, 'error': str(e)}
+
+
+# ── Heartbeat / auto-shutdown ─────────────────────────────────────────────────
+_last_heartbeat: float | None = None
+_HEARTBEAT_TIMEOUT = 35  # sekund; po tym czasie bez heartbeatu serwer się wyłącza
+
+
+def _watchdog():
+    """Wątek-demon: wyłącza serwer gdy karta przeglądarki zostanie zamknięta."""
+    while True:
+        time.sleep(5)
+        if _last_heartbeat is not None and time.time() - _last_heartbeat > _HEARTBEAT_TIMEOUT:
+            print('\n[monitor_cen] Brak heartbeatu — zamykam serwer.')
+            os.kill(os.getpid(), signal.SIGTERM)
 
 
 @app.after_request
@@ -42,6 +72,15 @@ def _save_thumbnail(product_id, remote_url):
             db.update_thumbnail(product_id, f'/static/thumbs/{product_id}.jpg')
     except Exception:
         pass
+
+
+def _get_grok_prompt():
+    """Get the prompt for Grok search."""
+    return (
+        "Szukaj promocji i okazji na sprzęt audio/hi-fi w europejskich sklepach internetowych. "
+        "Skoncentruj się na produktach, które mogę kupić taniej w krajach takich jak Niemcy, Francja, Holandia czy Austria, "
+        "a następnie odsprzedać z zyskiem w Polsce. Podaj konkretne produkty, sklepy, ceny i linki."
+    )
 
 
 # ── Main list ─────────────────────────────────────────────────────────────────
@@ -81,16 +120,21 @@ def add_product():
 
     if action == 'confirm':
         try:
+            price = float(request.form['price'])
             product_id = db.add_product(
                 name=request.form['name'],
                 url=request.form['url'],
                 store=request.form['store'],
                 thumbnail_url=request.form.get('thumbnail_url') or None,
-                price=float(request.form['price']),
+                price=price,
                 currency=request.form['currency'],
                 brand=request.form.get('brand', ''),
             )
             _save_thumbnail(product_id, request.form.get('thumbnail_url'))
+            db.log_event('product_added', product_id=product_id,
+                         product_name=request.form['name'],
+                         product_store=request.form['store'],
+                         details={'price': price, 'currency': request.form['currency']})
             flash('Produkt dodany pomyślnie!', 'success')
             return redirect(url_for('index'))
         except Exception as e:
@@ -142,13 +186,25 @@ def update_product(product_id):
     if not product:
         return jsonify({'error': 'Produkt nie istnieje'}), 404
     old_price = product['current_price']
+    run_id = request.headers.get('X-Run-Id')
     try:
         data = scraper.scrape_product(product['url'])
         new_price = data['price']
-        db.update_price(product_id, new_price, brand=data.get('brand') or None)
+        db.update_price(product_id, new_price)
         price_changed = (
             old_price is not None and new_price is not None and old_price != new_price
         )
+        if price_changed:
+            pct = round((new_price - old_price) / old_price * 100, 2) if old_price else 0
+            db.log_event('price_changed', product_id=product_id,
+                         product_name=product['name'], product_store=product['store'],
+                         run_id=run_id,
+                         details={'old_price': old_price, 'new_price': new_price,
+                                  'currency': data['currency'], 'pct': pct})
+        elif new_price is None and old_price is not None:
+            db.log_event('price_unavailable', product_id=product_id,
+                         product_name=product['name'], product_store=product['store'],
+                         run_id=run_id, details={})
         return jsonify({
             'success': True,
             'price': new_price,
@@ -158,22 +214,27 @@ def update_product(product_id):
             'unavailable': new_price is None,
         })
     except Exception as e:
+        db.log_event('scrape_error', product_id=product_id,
+                     product_name=product['name'], product_store=product['store'],
+                     run_id=run_id, details={'error': str(e)})
         return jsonify({'error': str(e)}), 500
 
 
-# ── Update all products (AJAX) ────────────────────────────────────────────────
+# ── Update all products — równolegle, jeden produkt ze sklepu naraz ──────────
 
 @app.route('/update-all', methods=['POST'])
 def update_all():
     products = db.get_all_products()
-    results = []
-    for p in products:
-        try:
-            data = scraper.scrape_product(p['url'])
-            db.update_price(p['id'], data['price'], brand=data.get('brand') or None)
-            results.append({'id': p['id'], 'success': True, 'price': data['price']})
-        except Exception as e:
-            results.append({'id': p['id'], 'success': False, 'error': str(e)})
+    if not products:
+        return jsonify([])
+    # Liczba workerów: jeden per sklep, ale max 8
+    n_stores = len({p['store'] for p in products})
+    workers  = min(n_stores, 8)
+    results  = []
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        futures = {ex.submit(_update_one_product, p): p for p in products}
+        for f in as_completed(futures):
+            results.append(f.result())
     return jsonify(results)
 
 
@@ -197,9 +258,17 @@ def toggle_dropship(product_id):
 
 @app.route('/delete/<int:product_id>', methods=['POST'])
 def delete_product(product_id):
+    product = db.get_product(product_id)
+    if product:
+        db.log_event('product_deleted', product_id=product_id,
+                     product_name=product['name'], product_store=product['store'],
+                     details={'price': product['current_price'],
+                              'currency': product['currency']})
     thumb = os.path.join(THUMBS_DIR, f'{product_id}.jpg')
-    if os.path.exists(thumb):
+    try:
         os.remove(thumb)
+    except FileNotFoundError:
+        pass
     db.delete_product(product_id)
     return jsonify({'success': True})
 
@@ -208,8 +277,13 @@ def delete_product(product_id):
 
 @app.route('/brand/<int:product_id>', methods=['POST'])
 def set_brand(product_id):
+    product = db.get_product(product_id)
     brand = request.form.get('brand', '').strip()
     db.update_brand_only(product_id, brand)
+    if product:
+        db.log_event('field_updated', product_id=product_id,
+                     product_name=product['name'], product_store=product['store'],
+                     details={'field': 'brand', 'old_value': product['brand'], 'new_value': brand})
     return jsonify({'success': True, 'brand': brand})
 
 
@@ -217,9 +291,15 @@ def set_brand(product_id):
 
 @app.route('/sale-price/<int:product_id>', methods=['POST'])
 def set_sale_price(product_id):
+    product = db.get_product(product_id)
     val = request.form.get('sale_price', '').strip()
     price = float(val) if val else None
     db.update_sale_price(product_id, price)
+    if product:
+        db.log_event('field_updated', product_id=product_id,
+                     product_name=product['name'], product_store=product['store'],
+                     details={'field': 'sale_price',
+                              'old_value': product['sale_price'], 'new_value': price})
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return jsonify({'success': True, 'sale_price': price})
     return redirect(url_for('product_detail', product_id=product_id))
@@ -229,9 +309,15 @@ def set_sale_price(product_id):
 
 @app.route('/min-price/<int:product_id>', methods=['POST'])
 def set_min_price(product_id):
+    product = db.get_product(product_id)
     val = request.form.get('min_price', '').strip()
     price = float(val) if val else None
     db.update_min_price(product_id, price)
+    if product:
+        db.log_event('field_updated', product_id=product_id,
+                     product_name=product['name'], product_store=product['store'],
+                     details={'field': 'min_price',
+                              'old_value': product['min_price'], 'new_value': price})
     return jsonify({'success': True, 'min_price': price})
 
 
@@ -245,6 +331,54 @@ def product_detail(product_id):
         return redirect(url_for('index'))
     history = db.get_price_history(product_id)
     return render_template('product.html', product=product, history=history)
+
+
+# ── Historia zdarzeń ─────────────────────────────────────────────────────────
+
+@app.route('/history')
+def history():
+    raw = db.get_event_log(limit=2000)
+    timeline = []
+    seen_runs: set = set()
+    run_buckets: dict = {}  # run_id -> list of events
+
+    # First pass: build run buckets
+    for ev in raw:
+        if ev['run_id']:
+            run_buckets.setdefault(ev['run_id'], []).append(ev)
+
+    # Second pass: build timeline preserving order (newest first)
+    for ev in raw:
+        if ev['run_id']:
+            rid = ev['run_id']
+            if rid not in seen_runs:
+                events = run_buckets[rid]
+                n_changed = sum(1 for e in events if e['event_type'] == 'price_changed')
+                n_errors  = sum(1 for e in events if e['event_type'] == 'scrape_error')
+                n_unavail = sum(1 for e in events if e['event_type'] == 'price_unavailable')
+                items = []
+                for re in events:
+                    items.append({**dict(re),
+                                  'details_parsed': json.loads(re['details'] or '{}')})
+                timeline.append({
+                    'kind': 'run',
+                    'run_id': rid,
+                    'events': items,
+                    'created_at': ev['created_at'],
+                    'n_total': len(events),
+                    'n_changed': n_changed,
+                    'n_errors': n_errors,
+                    'n_unavail': n_unavail,
+                })
+                seen_runs.add(rid)
+        else:
+            timeline.append({
+                'kind': 'event',
+                'data': {**dict(ev),
+                         'details_parsed': json.loads(ev['details'] or '{}')},
+            })
+
+    return render_template('history.html', timeline=timeline)
 
 
 # ── Integrations wizard ───────────────────────────────────────────────────────
@@ -273,7 +407,6 @@ def integrations_start():
         return jsonify({'error': 'Podaj URL produktu'}), 400
 
     # Sprawdź czy domena nie jest już skonfigurowana
-    from urllib.parse import urlparse
     domain = urlparse(url).netloc.removeprefix('www.')
     if any(d in url for d in scraper.SUPPORTED_STORES) or domain in scraper._css_store_configs:
         return jsonify({'error': f'Sklep {domain} jest już skonfigurowany'}), 400
@@ -337,6 +470,12 @@ def integrations_cancel(session_id):
     return jsonify({'ok': True})
 
 
+@app.route('/integrations/complete/<session_id>', methods=['POST'])
+def integrations_complete(session_id):
+    result = wizard.complete_session(session_id)
+    return jsonify(result)
+
+
 @app.route('/wizard/<session_id>')
 def wizard_page(session_id):
     status = wizard.get_status(session_id)
@@ -348,15 +487,73 @@ def wizard_page(session_id):
 
 @app.route('/integrations/delete/<domain>', methods=['POST'])
 def integrations_delete(domain):
-    from pathlib import Path
-    import json as _json
     p = Path(__file__).parent / 'stores.json'
     if p.exists():
-        data = _json.loads(p.read_text(encoding='utf-8'))
+        data = json.loads(p.read_text(encoding='utf-8'))
         data['stores'] = [s for s in data['stores'] if s['domain'] != domain]
-        p.write_text(_json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+        p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
     scraper.reload_stores()
     return jsonify({'ok': True})
+
+
+# ── Edycja sklepu ──────────────────────────────────────────────────────────────
+
+@app.route('/integrations/edit/<domain>', methods=['POST'])
+def integrations_edit(domain):
+    data_in      = request.get_json(force=True)
+    display_name = data_in.get('display_name', '').strip()
+    price_type   = data_in.get('price_type', 'gross')
+    vat_rate     = int(data_in.get('vat_rate', 20))
+    currency     = data_in.get('currency', 'EUR')
+    if not display_name:
+        return jsonify({'ok': False, 'error': 'Podaj nazwę sklepu'}), 400
+    p = Path(__file__).parent / 'stores.json'
+    if not p.exists():
+        return jsonify({'ok': False, 'error': 'stores.json nie istnieje'}), 404
+    stores_data = json.loads(p.read_text(encoding='utf-8'))
+    updated = False
+    for store in stores_data.get('stores', []):
+        if store['domain'] == domain:
+            store['display_name'] = display_name
+            store['price_type']   = price_type
+            store['vat_rate']     = vat_rate
+            store['currency']     = currency
+            updated = True
+            break
+    if not updated:
+        return jsonify({'ok': False, 'error': f'Sklep {domain} nie istnieje'}), 404
+    p.write_text(json.dumps(stores_data, ensure_ascii=False, indent=2), encoding='utf-8')
+    scraper.reload_stores()
+    return jsonify({'ok': True})
+
+
+# ── Heartbeat (auto-shutdown gdy karta zamknięta) ─────────────────────────────
+
+@app.route('/heartbeat', methods=['POST'])
+def heartbeat():
+    global _last_heartbeat
+    _last_heartbeat = time.time()
+    return jsonify({'ok': True})
+
+
+# ── Admin: wyłącz serwer ──────────────────────────────────────────────────────
+
+@app.route('/admin/shutdown', methods=['POST'])
+def admin_shutdown():
+    def _kill():
+        time.sleep(0.3)
+        os.kill(os.getpid(), signal.SIGTERM)
+    threading.Thread(target=_kill, daemon=True).start()
+    return jsonify({'ok': True, 'message': 'Serwer zatrzymany.'})
+
+
+# ── Grok audio search ─────────────────────────────────────────────────────────
+
+@app.route('/grok-search', methods=['POST'])
+def grok_search():
+    """Return Grok search prompt and URL."""
+    prompt = _get_grok_prompt()
+    return jsonify({'prompt': prompt})
 
 
 # ── Backfill brands (one-time admin route) ────────────────────────────────────
@@ -388,7 +585,9 @@ if __name__ == '__main__':
         tid = p['thumbnail_url']
         if tid and tid.startswith('http'):
             _save_thumbnail(p['id'], tid)
-    print("Monitor Cen uruchomiony: http://localhost:5000")
-    import os
-    port = int(os.environ.get('PORT', 5000))
-    app.run(debug=True, port=port)
+    port = int(os.environ.get('PORT', 5001))
+    # Watchdog — wyłącza serwer gdy karta przeglądarki zostanie zamknięta
+    if os.environ.get('AUTO_SHUTDOWN', '1') != '0':
+        threading.Thread(target=_watchdog, daemon=True).start()
+    print(f'Monitor Cen uruchomiony: http://localhost:{port}')
+    app.run(debug=True, port=port, threaded=True)

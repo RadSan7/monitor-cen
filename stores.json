@@ -13,6 +13,33 @@
       "vat_rate": 20,
       "currency": "EUR",
       "created_at": "2026-03-23T01:51:55"
+    },
+    {
+      "domain": "futureland.fr",
+      "display_name": "Futurland",
+      "selectors": {
+        "name": "h1.h1",
+        "brand": "p.price-ecotax",
+        "price": "span.current-price-value"
+      },
+      "price_type": "gross",
+      "vat_rate": 20,
+      "currency": "EUR",
+      "created_at": "2026-03-26T04:01:01"
+    },
+    {
+      "domain": "pl.hifis.be",
+      "display_name": "Hifis.be",
+      "selectors": {
+        "name": "h1.product_title",
+        "brand": "tr.woocommerce-product-attributes-item.woocommerce-product-attributes-item--attribute_pa_merk > td > p > a",
+        "price": "p.gt-block.price > ins > span > bdi",
+        "thumbnail": "div.woocommerce-product-gallery__image > a > div > img:nth-of-type(2)"
+      },
+      "price_type": "gross",
+      "vat_rate": 20,
+      "currency": "EUR",
+      "created_at": "2026-03-27T13:49:52"
     }
   ]
 }

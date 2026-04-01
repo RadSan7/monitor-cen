@@ -5,37 +5,39 @@
   <div class="container-xl px-3">
     <div class="d-flex flex-wrap align-items-center gap-2">
 
-      <div class="input-group input-group-sm" style="max-width:280px">
-        <span class="input-group-text"><i class="bi bi-search text-muted"></i></span>
+      <div class="input-group input-group-sm" style="max-width:260px">
+        <span class="input-group-text bg-transparent border-end-0"><i class="bi bi-search text-muted"></i></span>
         <input id="search-input" type="text" class="form-control border-start-0 ps-0"
-               placeholder="Szukaj produktu…" oninput="applyFilters()">
+               placeholder="Szukaj…" oninput="applyFilters()">
       </div>
 
-      <button id="btn-filter-favorite" class="btn btn-sm btn-outline-secondary"
-              onclick="toggleFilter('favorite')" title="Pokaż tylko ulubione">
-        <i class="bi bi-heart-fill"></i>
-      </button>
+      <div class="vr mx-1 opacity-25"></div>
 
-      <button id="btn-filter-dropship" class="btn btn-sm btn-outline-secondary"
-              onclick="toggleFilter('dropship')" title="Pokaż tylko dropship">
-        <i class="bi bi-truck me-1"></i>Dropship
-      </button>
-
-      <button id="btn-filter-changed" class="btn btn-sm btn-outline-secondary"
-              onclick="toggleFilter('changed')" title="Pokaż tylko zmienione ceny">
-        <i class="bi bi-arrow-left-right me-1"></i>Zmiana ceny
-      </button>
-
-      <button id="btn-filter-atlow" class="btn btn-sm btn-outline-secondary"
-              onclick="toggleFilter('atlow')" title="Produkty na historycznym minimum">
-        <i class="bi bi-graph-down me-1"></i>Hist. min
-      </button>
+      <div class="btn-group btn-group-sm" role="group" aria-label="Filtry statusu">
+        <button id="btn-filter-favorite" class="btn btn-outline-secondary"
+                onclick="toggleFilter('favorite')" title="Ulubione">
+          <i class="bi bi-heart-fill"></i>
+        </button>
+        <button id="btn-filter-dropship" class="btn btn-outline-secondary"
+                onclick="toggleFilter('dropship')" title="Dropship">
+          <i class="bi bi-truck me-1"></i>DS
+        </button>
+        <button id="btn-filter-changed" class="btn btn-outline-secondary"
+                onclick="toggleFilter('changed')" title="Zmienione ceny">
+          <i class="bi bi-arrow-left-right me-1"></i>↕
+        </button>
+        <button id="btn-filter-atlow" class="btn btn-outline-secondary"
+                onclick="toggleFilter('atlow')" title="Hist. minimum">
+          <i class="bi bi-graph-down"></i>
+        </button>
+      </div>
 
       <div class="ms-auto d-flex align-items-center gap-2">
         <span class="text-muted small fw-semibold" id="count-label">
           {{ products | length }} produkt{{ 'y' if products|length in [2,3,4] else ('ów' if products|length != 1 else '') }}
         </span>
         {% if products %}
+        <div class="vr opacity-25"></div>
         <div class="btn-group btn-group-sm" role="group" id="view-toggle">
           <button id="btn-view-grid" class="btn btn-outline-secondary active" onclick="setView('grid')" title="Widok kart">
             <i class="bi bi-grid-3x3-gap"></i>
@@ -44,8 +46,8 @@
             <i class="bi bi-list-ul"></i>
           </button>
         </div>
-        <button id="btn-update-all" class="btn btn-sm btn-primary" onclick="updateAll()">
-          <i class="bi bi-arrow-clockwise me-2"></i>Aktualizuj
+        <button id="btn-grok" class="btn btn-sm btn-outline-info" onclick="searchGrok()" title="Szukaj okazji audio/hifi w Grok">
+          <i class="bi bi-robot"></i>
         </button>
         {% endif %}
       </div>
@@ -54,20 +56,23 @@
 
     {# ── Second row: store / brand / price filters ── #}
     {% if products %}
+    {% set stores = [] %}
+    {% for p in products %}{% if p.store not in stores %}{% set _ = stores.append(p.store) %}{% endif %}{% endfor %}
+    {% set brands = [] %}
+    {% for p in products %}{% if p.brand and p.brand not in brands %}{% set _ = brands.append(p.brand) %}{% endif %}{% endfor %}
+
     <div class="d-flex flex-wrap align-items-center gap-2 mt-2 pt-2" style="border-top:1px solid rgba(0,0,0,.07)">
 
-      {% set stores = [] %}
-      {% for p in products %}{% if p.store not in stores %}{% set _ = stores.append(p.store) %}{% endif %}{% endfor %}
+      <span class="text-muted" style="font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase">Sklep:</span>
       {% for s in stores | sort %}
       <button class="btn btn-sm btn-outline-secondary btn-filter-store"
               data-store="{{ s | lower }}"
               onclick="toggleStoreFilter(this)">{{ s }}</button>
       {% endfor %}
 
-      {% set brands = [] %}
-      {% for p in products %}{% if p.brand and p.brand not in brands %}{% set _ = brands.append(p.brand) %}{% endif %}{% endfor %}
       {% if brands %}
-      <select id="brand-select" class="form-select form-select-sm" style="max-width:150px" onchange="applyFilters()">
+      <div class="vr opacity-25 mx-1"></div>
+      <select id="brand-select" class="form-select form-select-sm" style="max-width:160px" onchange="applyFilters()">
         <option value="">Wszystkie marki</option>
         {% for b in brands | sort %}
         <option value="{{ b | lower }}">{{ b }}</option>
@@ -75,11 +80,15 @@
       </select>
       {% endif %}
 
-      <input id="price-min" type="number" min="0" step="10" placeholder="Min EUR"
-             class="form-control form-control-sm" style="max-width:90px" oninput="applyFilters()">
-      <span class="text-muted small">—</span>
-      <input id="price-max" type="number" min="0" step="10" placeholder="Max EUR"
-             class="form-control form-control-sm" style="max-width:90px" oninput="applyFilters()">
+      <div class="vr opacity-25 mx-1"></div>
+      <div class="d-flex align-items-center gap-1">
+        <input id="price-min" type="number" min="0" step="10" placeholder="Min"
+               class="form-control form-control-sm text-center" style="max-width:72px" oninput="applyFilters()">
+        <span class="text-muted small">–</span>
+        <input id="price-max" type="number" min="0" step="10" placeholder="Max"
+               class="form-control form-control-sm text-center" style="max-width:72px" oninput="applyFilters()">
+        <span class="text-muted small" style="font-size:11px">EUR</span>
+      </div>
 
     </div>
     {% endif %}
@@ -112,7 +121,8 @@
        data-changed="{{ '1' if p.previous_price is not none and p.current_price != p.previous_price else '0' }}"
        data-atlow="{{ '1' if p.current_price is not none and p.min_price is not none and p.current_price == p.min_price else '0' }}"
        data-price="{{ p.current_price or 0 }}"
-       data-favorite="{{ '1' if p.is_favorite else '0' }}">
+       data-favorite="{{ '1' if p.is_favorite else '0' }}"
+       data-price-changed-at="{{ p.price_changed_at or '' }}">
 
     <div class="card h-100 border-0 p-3">
       <!-- Badge Section -->
@@ -127,6 +137,10 @@
           {% if p.is_favorite %}
           <span class="badge bg-danger favorite-badge"><i class="bi bi-heart-fill me-1"></i></span>
           {% endif %}
+          {# Badge 24h — pokazywany przez JS jeśli zmiana ceny w ostatnich 24h #}
+          <span class="badge bg-warning text-dark price-change-badge d-none">
+            <i class="bi bi-lightning-charge-fill me-1"></i>Nowa cena
+          </span>
         </div>
         <div class="dropdown">
           <button class="btn btn-sm btn-link text-muted p-0" data-bs-toggle="dropdown">
@@ -228,30 +242,23 @@
 
 {% endif %}
 
-{# ── Update progress widget (bottom-right) ────────────────────────────────── #}
-<div id="update-progress" class="d-none"
-     style="position:fixed; bottom:24px; right:24px; z-index:1055; min-width:260px">
-  <div class="glass" style="border-radius:16px; overflow:hidden; padding:1rem">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <span class="fw-semibold small"><i class="bi bi-arrow-clockwise me-2 text-primary"></i>Aktualizacja cen</span>
-      <span id="progress-text" class="text-muted small fw-semibold">0 / 0</span>
-    </div>
-    <div class="progress" style="height:5px; border-radius:4px">
-      <div id="progress-bar"
-           class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
-           style="width:0%; transition:width .3s ease"></div>
-    </div>
-  </div>
-</div>
-
-{# ── Update summary modal ─────────────────────────────────────────────────── #}
-<div class="modal fade" id="update-summary-modal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered" style="max-width:340px">
+{# ── Grok prompt modal ─────────────────────────────────────────────────── #}
+<div class="modal fade" id="grok-prompt-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content glass border-0 shadow-lg" style="border-radius:18px">
-      <div class="modal-body p-4 text-center">
-        <div id="update-summary-body"></div>
-        <button type="button" class="btn btn-primary btn-sm mt-3 px-4"
-                data-bs-dismiss="modal">OK</button>
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title d-flex align-items-center gap-2">
+          <i class="bi bi-robot"></i>Prompt dla Grok
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div id="grok-prompt-body">
+          <!-- Prompt and copy button will be inserted here -->
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Zamknij</button>
       </div>
     </div>
   </div>
@@ -261,518 +268,6 @@
 
 
 {% block scripts %}
-<script>
-// ── Clean product names ───────────────────────────────────────────────────────
-function cleanProductName(name, brand) {
-  const phrasesToRemove = [
-    'Amplificateur',
-    'Enceinte colonne',
-    'Pack d\'enceintes',
-    'Home-Cinema',
-    'Hi-Fi',
-    'HIFI',
-  ];
-
-  let cleaned = name;
-  phrasesToRemove.forEach(phrase => {
-    cleaned = cleaned.replace(new RegExp(phrase, 'gi'), '').trim();
-  });
-  cleaned = cleaned.replace(/\s+/g, ' ').trim();
-
-  if (brand && !cleaned.toLowerCase().startsWith(brand.toLowerCase())) {
-    cleaned = brand + ' ' + cleaned;
-  }
-
-  return cleaned;
-}
-
-// ── Apply display names on page load ──────────────────────────────────────────
-function applyDisplayNames() {
-  document.querySelectorAll('.product-display-name').forEach(elem => {
-    const cell = elem.closest('.product-name-cell');
-    const productId = cell.dataset.id;
-    const original  = cell.dataset.original;
-    const brand     = cell.dataset.brand || '';
-
-    const key = `product_name_v3_${productId}`;
-    const stored = JSON.parse(localStorage.getItem(key) || 'null');
-    if (stored && stored.brand === brand) {
-      elem.textContent = stored.name;
-    } else {
-      const cleaned = cleanProductName(original, brand);
-      elem.textContent = cleaned;
-      localStorage.setItem(key, JSON.stringify({ name: cleaned, brand }));
-    }
-  });
-}
-
-// ── Editable product name (click pencil button) ────────────────────────────────
-document.addEventListener('click', function(e) {
-  const btn = e.target.closest('.edit-name-btn');
-  if (!btn) return;
-
-  const cell = btn.closest('.product-name-cell');
-  if (!cell || cell.querySelector('input')) return;
-
-  const productId = cell.dataset.id;
-  const displayElem = cell.querySelector('.product-display-name');
-  const current = displayElem.textContent.trim();
-
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.value = current;
-  input.className = 'form-control form-control-sm';
-  input.style.cssText = 'width:100%; margin-bottom:0.25rem';
-
-  displayElem.replaceWith(input);
-  input.focus();
-  input.select();
-
-  const save = () => {
-    const newName = input.value.trim() || current;
-    const brand = cell.dataset.brand || '';
-    localStorage.setItem(`product_name_v3_${productId}`, JSON.stringify({ name: newName, brand }));
-
-    const span = document.createElement('span');
-    span.className = 'product-display-name fw-bold mb-1 text-truncate';
-    span.title = newName;
-    span.textContent = newName;
-    input.replaceWith(span);
-  };
-
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
-    if (e.key === 'Escape') {
-      const span = document.createElement('span');
-      span.className = 'product-display-name fw-bold mb-1 text-truncate';
-      span.title = current;
-      span.textContent = current;
-      input.replaceWith(span);
-    }
-  });
-  input.addEventListener('blur', save, { once: true });
-});
-
-// ── Filter state ──────────────────────────────────────────────────────────────
-const activeFilters      = new Set();
-const activeStoreFilters = new Set();
-
-function toggleFilter(name) {
-  const colorMap = { favorite: 'btn-danger', dropship: 'btn-primary', changed: 'btn-warning', atlow: 'btn-success' };
-  const btn = document.getElementById('btn-filter-' + name);
-  if (activeFilters.has(name)) {
-    activeFilters.delete(name);
-    btn.classList.remove('active', 'btn-danger', 'btn-primary', 'btn-warning', 'btn-success');
-    btn.classList.add('btn-outline-secondary');
-  } else {
-    activeFilters.add(name);
-    btn.classList.remove('btn-outline-secondary');
-    btn.classList.add('active', colorMap[name] || 'btn-secondary');
-  }
-  applyFilters();
-}
-
-function toggleStoreFilter(btn) {
-  const s = btn.dataset.store;
-  if (activeStoreFilters.has(s)) {
-    activeStoreFilters.delete(s);
-    btn.classList.remove('active');
-  } else {
-    activeStoreFilters.add(s);
-    btn.classList.add('active');
-  }
-  applyFilters();
-}
-
-function applyFilters() {
-  const query    = document.getElementById('search-input').value.toLowerCase().trim();
-  const rows     = document.querySelectorAll('.product-col');
-  const brandSel = document.getElementById('brand-select');
-  const pMinEl   = document.getElementById('price-min');
-  const pMaxEl   = document.getElementById('price-max');
-  const brandVal = brandSel ? brandSel.value : '';
-  const pMin     = parseFloat(pMinEl?.value) || 0;
-  const pMax     = parseFloat(pMaxEl?.value) || Infinity;
-  let visible    = 0;
-
-  rows.forEach(row => {
-    const name  = row.dataset.name  || '';
-    const store = row.dataset.store || '';
-    const brand = row.dataset.brand || '';
-    const price = parseFloat(row.dataset.price) || 0;
-
-    let show = true;
-    if (query && !name.includes(query) && !store.includes(query) && !brand.includes(query)) show = false;
-    if (activeFilters.has('favorite') && row.dataset.favorite !== '1') show = false;
-    if (activeFilters.has('dropship') && row.dataset.dropship !== '1') show = false;
-    if (activeFilters.has('changed')  && row.dataset.changed  !== '1') show = false;
-    if (activeFilters.has('atlow')    && row.dataset.atlow    !== '1') show = false;
-    if (activeStoreFilters.size && !activeStoreFilters.has(store))      show = false;
-    if (brandVal && brand !== brandVal)                                  show = false;
-    if (price && pMin && price < pMin)                                   show = false;
-    if (price && pMax !== Infinity && price > pMax)                      show = false;
-
-    row.classList.toggle('d-none', !show);
-    if (show) visible++;
-  });
-
-  const noResults = document.getElementById('no-results');
-  if (noResults) noResults.classList.toggle('d-none', visible > 0);
-
-  const label = document.getElementById('count-label');
-  if (label) label.textContent = visible + ' produkt' + pluralPL(visible);
-}
-
-function pluralPL(n) {
-  if (n === 1) return '';
-  if ([2,3,4].includes(n % 10) && ![12,13,14].includes(n % 100)) return 'y';
-  return 'ów';
-}
-
-// ── Favorite toggle ───────────────────────────────────────────────────────────
-async function toggleFavorite(id) {
-  const res  = await fetch('/favorite/' + id, { method: 'POST' });
-  const data = await res.json();
-  if (!data.success) return;
-
-  const row   = document.getElementById('row-' + id);
-  const isNow = data.is_favorite;
-
-  row.dataset.favorite = isNow ? '1' : '0';
-
-  const btn = document.getElementById('fav-btn-' + id);
-  if (btn) {
-    btn.innerHTML = `<i class="bi bi-heart${isNow ? '-fill' : ''} me-2"></i>${isNow ? 'Usuń z ulubionych' : 'Ulubione'}`;
-  }
-
-  // Update grid-mode badge
-  const badgeArea = row.querySelector('.badge-group');
-  const favBadge  = row.querySelector('.favorite-badge');
-  if (isNow && !favBadge) {
-    const badge = document.createElement('span');
-    badge.className = 'badge bg-danger favorite-badge';
-    badge.innerHTML = '<i class="bi bi-heart-fill me-1"></i>';
-    badgeArea?.appendChild(badge);
-  } else if (!isNow && favBadge) {
-    favBadge.remove();
-  }
-  // Update list-mode badge
-  const indicators = row.querySelector('.list-filter-indicators');
-  const listFavBadge = row.querySelector('.list-fav-badge');
-  if (isNow && !listFavBadge) {
-    const b = document.createElement('span');
-    b.className = 'badge bg-danger list-fav-badge';
-    b.innerHTML = '<i class="bi bi-heart-fill"></i>';
-    indicators?.appendChild(b);
-  } else if (!isNow && listFavBadge) {
-    listFavBadge.remove();
-  }
-
-  applyFilters();
-}
-
-// ── Dropship toggle ───────────────────────────────────────────────────────────
-async function toggleDropship(id) {
-  const res  = await fetch('/dropship/' + id, { method: 'POST' });
-  const data = await res.json();
-  if (!data.success) return;
-
-  const row   = document.getElementById('row-' + id);
-  const isNow = data.is_dropship;
-
-  row.dataset.dropship = isNow ? '1' : '0';
-
-  // Update grid-mode badge
-  const badgeArea = row.querySelector('.badge-group');
-  const badgeEl   = row.querySelector('.dropship-badge');
-  if (isNow && !badgeEl) {
-    const badge = document.createElement('span');
-    badge.className = 'badge bg-info dropship-badge';
-    badge.innerHTML = '<i class="bi bi-rocket-fill me-1"></i>Dropship';
-    badgeArea?.appendChild(badge);
-  } else if (!isNow && badgeEl) {
-    badgeEl.remove();
-  }
-  // Update list-mode badge
-  const indicators = row.querySelector('.list-filter-indicators');
-  const listDsBadge = row.querySelector('.list-dropship-badge');
-  if (isNow && !listDsBadge) {
-    const b = document.createElement('span');
-    b.className = 'badge bg-info list-dropship-badge';
-    b.innerHTML = '<i class="bi bi-rocket-fill me-1"></i>DS';
-    indicators?.prepend(b);
-  } else if (!isNow && listDsBadge) {
-    listDsBadge.remove();
-  }
-
-  applyFilters();
-}
-
-// ── Update single ─────────────────────────────────────────────────────────────
-async function updateProduct(id) {
-  const icon = document.getElementById('spin-' + id);
-  if (icon) icon.classList.add('spin');
-  try {
-    const res  = await fetch('/update/' + id, { method: 'POST' });
-    const data = await res.json();
-    if (data.success) { location.reload(); }
-    else { alert('Błąd: ' + (data.error || 'Nieznany błąd')); }
-  } catch (e) {
-    alert('Błąd połączenia: ' + e);
-  } finally {
-    if (icon) icon.classList.remove('spin');
-  }
-}
-
-// ── Update all ────────────────────────────────────────────────────────────────
-async function updateAll() {
-  const rows = [...document.querySelectorAll('.product-col[id^="row-"]')]
-    .sort((a, b) => a.dataset.store.localeCompare(b.dataset.store));
-  const total = rows.length;
-  if (!total) return;
-
-  const btn          = document.getElementById('btn-update-all');
-  const widget       = document.getElementById('update-progress');
-  const progressText = document.getElementById('progress-text');
-  const progressBar  = document.getElementById('progress-bar');
-
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Aktualizuję…';
-  widget.classList.remove('d-none');
-
-  let done = 0, changed = 0, unavailable = 0, failed = 0;
-
-  for (const row of rows) {
-    const id = row.id.replace('row-', '');
-    progressText.textContent = `${done} / ${total}`;
-    progressBar.style.width  = `${(done / total) * 100}%`;
-
-    try {
-      const res  = await fetch('/update/' + id, { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
-        if (data.unavailable)     unavailable++;
-        else if (data.price_changed) changed++;
-      } else {
-        failed++;
-      }
-    } catch (_) {
-      failed++;
-    }
-    done++;
-  }
-
-  progressText.textContent = `${done} / ${total}`;
-  progressBar.style.width  = '100%';
-  progressBar.classList.remove('progress-bar-striped', 'progress-bar-animated');
-
-  setTimeout(() => widget.classList.add('d-none'), 1200);
-
-  btn.disabled = false;
-  btn.innerHTML = '<i class="bi bi-arrow-clockwise me-2"></i>Aktualizuj';
-
-  const successCount = done - failed;
-  let html = `<p class="fs-4 fw-bold mb-1">${successCount}<span class="fs-6 fw-normal text-muted">/${total}</span></p>`
-           + `<p class="text-muted small mb-2">zaktualizowanych</p>`;
-
-  const details = [];
-  if (changed > 0)
-    details.push(`<i class="bi bi-arrow-left-right me-1 text-warning"></i>${changed} produkt${changed === 1 ? '' : 'ów'} zmieniło ceny`);
-  if (unavailable > 0)
-    details.push(`<i class="bi bi-slash-circle me-1 text-secondary"></i>${unavailable} produkt${unavailable === 1 ? '' : 'ów'} niedostępny${unavailable > 1 ? 'ch' : ''}`);
-  if (failed > 0)
-    details.push(`<i class="bi bi-exclamation-circle me-1 text-danger"></i>${failed} błąd${failed > 1 ? 'ów' : ''}`);
-
-  if (details.length)
-    html += `<div class="text-muted small lh-lg">${details.join('<br>')}</div>`;
-
-  document.getElementById('update-summary-body').innerHTML = html;
-
-  const modal = new bootstrap.Modal(document.getElementById('update-summary-modal'));
-  document.getElementById('update-summary-modal').addEventListener(
-    'hidden.bs.modal', () => location.reload(), { once: true }
-  );
-  modal.show();
-}
-
-// ── Delete (dwuklik: 1. zaznacz, 2. usuń; 3 s na timeout) ────────────────────
-const _deleteTimers = {};
-document.addEventListener('click', async function(e) {
-  const btn = e.target.closest('.delete-btn');
-  if (!btn) return;
-  const id = btn.dataset.id;
-
-  if (!btn.dataset.pending) {
-    btn.dataset.pending = '1';
-    btn.classList.add('text-danger', 'fw-bold');
-    btn.title = 'Kliknij ponownie aby potwierdzić';
-    _deleteTimers[id] = setTimeout(() => {
-      btn.dataset.pending = '';
-      btn.classList.remove('text-danger', 'fw-bold');
-      btn.title = 'Usuń produkt';
-    }, 3000);
-    return;
-  }
-
-  clearTimeout(_deleteTimers[id]);
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-  try {
-    const res  = await fetch('/delete/' + id, { method: 'POST' });
-    const data = await res.json();
-    if (data.success) {
-      const row = document.getElementById('row-' + id);
-      row.style.transition = 'opacity .25s';
-      row.style.opacity = '0';
-      setTimeout(() => { row.remove(); applyFilters(); }, 250);
-    }
-  } catch (err) {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="bi bi-trash3 me-2"></i>Usuń';
-  }
-});
-
-// ── Inline sale price edit ────────────────────────────────────────────────────
-document.addEventListener('click', function(e) {
-  const cell = e.target.closest('.sale-price-cell');
-  if (!cell || cell.querySelector('input')) return;
-
-  const id      = cell.dataset.id;
-  const current = cell.querySelector('.fw-bold')?.textContent.trim().split('\u00a0')[0].replace(/[^\d.]/g, '') || '';
-
-  const input = document.createElement('input');
-  input.type      = 'number';
-  input.step      = '0.01';
-  input.min       = '0';
-  input.value     = current;
-  input.className = 'form-control form-control-sm';
-  cell.innerHTML  = '';
-  cell.appendChild(input);
-  input.focus();
-  input.select();
-
-  const render = (sp) => {
-    if (sp !== null && sp !== undefined) {
-      cell.innerHTML = '<div class="stat-label">Cena w PL</div><div class="fw-bold text-primary">' +
-        Number(sp).toFixed(2) + ' PLN</div>';
-    } else {
-      cell.innerHTML = '<div class="stat-label">Cena w PL</div><div class="fw-bold text-primary"><span class="text-muted small">+ dodaj</span></div>';
-    }
-  };
-
-  const save = async () => {
-    const val  = input.value.trim();
-    const body = new FormData();
-    if (val) body.append('sale_price', val);
-    try {
-      const res  = await fetch('/sale-price/' + id, {
-        method: 'POST', body,
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-      });
-      const data = await res.json();
-      if (data.success) render(data.sale_price);
-    } catch { render(current || null); }
-  };
-
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Enter')  { e.preventDefault(); input.blur(); }
-    if (e.key === 'Escape') { input.removeEventListener('blur', save); render(current || null); }
-  });
-  input.addEventListener('blur', save, { once: true });
-});
-
-// ── Inline min price edit ────────────────────────────────────────────────────
-document.addEventListener('click', function(e) {
-  const cell = e.target.closest('.min-price-cell');
-  if (!cell || cell.querySelector('input')) return;
-
-  const id       = cell.dataset.id;
-  const currency = cell.dataset.currency || 'EUR';
-  const current  = cell.querySelector('.fw-bold')?.textContent.trim().split('\u00a0')[0].replace(/[^\d.]/g, '') || '';
-
-  const input = document.createElement('input');
-  input.type      = 'number';
-  input.step      = '0.01';
-  input.min       = '0';
-  input.value     = current;
-  input.className = 'form-control form-control-sm';
-  cell.innerHTML  = '';
-  cell.appendChild(input);
-  input.focus();
-  input.select();
-
-  const render = (mp) => {
-    const row = document.getElementById('row-' + id);
-    const priceSpan = row?.querySelector('[id^="price-"]');
-    const currentPrice = priceSpan ? parseFloat(priceSpan.textContent.trim().split('\u00a0')[0]) : null;
-    const isMinCurrent = currentPrice !== null && currentPrice === parseFloat(mp);
-
-    if (mp !== null && mp !== undefined && mp !== '') {
-      const colorClass = isMinCurrent ? 'text-success' : '';
-      cell.innerHTML = '<div class="stat-label">Min. Hist.</div><div class="fw-bold ' + colorClass + '">' +
-        Number(mp).toFixed(2) + ' ' + currency + '</div>';
-    } else {
-      cell.innerHTML = '<div class="stat-label">Min. Hist.</div><div class="fw-bold">—</div>';
-    }
-  };
-
-  const save = async () => {
-    const val  = input.value.trim();
-    const body = new FormData();
-    if (val) body.append('min_price', val);
-    try {
-      const res  = await fetch('/min-price/' + id, {
-        method: 'POST', body,
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-      });
-      const data = await res.json();
-      if (data.success) render(data.min_price);
-    } catch { render(current || null); }
-  };
-
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Enter')  { e.preventDefault(); input.blur(); }
-    if (e.key === 'Escape') { input.removeEventListener('blur', save); render(current || null); }
-  });
-  input.addEventListener('blur', save, { once: true });
-});
-
-// ── Dropdown z-index fix in list view ────────────────────────────────────────
-document.addEventListener('shown.bs.dropdown', e => {
-  e.target.closest('.product-col')?.classList.add('dropdown-open');
-});
-document.addEventListener('hidden.bs.dropdown', e => {
-  e.target.closest('.product-col')?.classList.remove('dropdown-open');
-});
-
-// ── View toggle (grid / list) ─────────────────────────────────────────────────
-function setView(mode) {
-  const grid    = document.getElementById('products-grid');
-  const btnGrid = document.getElementById('btn-view-grid');
-  const btnList = document.getElementById('btn-view-list');
-  if (!grid) return;
-
-  if (mode === 'list') {
-    grid.classList.add('list-view');
-    btnGrid?.classList.remove('active');
-    btnList?.classList.add('active');
-  } else {
-    grid.classList.remove('list-view');
-    btnGrid?.classList.add('active');
-    btnList?.classList.remove('active');
-  }
-  localStorage.setItem('productView', mode);
-}
-
-// ── Initialize display names on page load ────────────────────────────────────
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    applyDisplayNames();
-    setView(localStorage.getItem('productView') || 'grid');
-  });
-} else {
-  applyDisplayNames();
-  setView(localStorage.getItem('productView') || 'grid');
-}
-</script>
+<script src="{{ url_for('static', filename='index_page.js') }}"></script>
 {% endblock %}
+

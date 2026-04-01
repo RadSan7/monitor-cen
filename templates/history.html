@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% block title %}Historia{% endblock %}
+
+{% block topbar %}
+<div class="topbar">
+  <div class="container-xl px-3">
+    <div class="d-flex flex-wrap align-items-center gap-2">
+
+      <div class="input-group input-group-sm" style="max-width:220px">
+        <span class="input-group-text bg-transparent border-end-0"><i class="bi bi-search text-muted"></i></span>
+        <input id="hist-search" type="text" class="form-control border-start-0 ps-0"
+               placeholder="Szukaj produktu…" oninput="histFilter()">
+      </div>
+
+      <div class="vr mx-1 opacity-25"></div>
+
+      <div class="btn-group btn-group-sm" role="group">
+        <button class="btn btn-outline-secondary hist-type-btn active" data-type="all" onclick="setHistType(this,'all')">
+          Wszystkie
+        </button>
+        <button class="btn btn-outline-secondary hist-type-btn" data-type="run" onclick="setHistType(this,'run')">
+          <i class="bi bi-arrow-clockwise me-1"></i>Runy
+        </button>
+        <button class="btn btn-outline-secondary hist-type-btn" data-type="price_changed" onclick="setHistType(this,'price_changed')">
+          <i class="bi bi-arrow-left-right me-1"></i>Zmiany cen
+        </button>
+        <button class="btn btn-outline-secondary hist-type-btn" data-type="product_added" onclick="setHistType(this,'product_added')">
+          <i class="bi bi-plus-lg me-1"></i>Dodania
+        </button>
+        <button class="btn btn-outline-secondary hist-type-btn" data-type="product_deleted" onclick="setHistType(this,'product_deleted')">
+          <i class="bi bi-trash3 me-1"></i>Usunięcia
+        </button>
+        <button class="btn btn-outline-secondary hist-type-btn" data-type="field_updated" onclick="setHistType(this,'field_updated')">
+          <i class="bi bi-pencil me-1"></i>Edycje
+        </button>
+        <button class="btn btn-outline-secondary hist-type-btn" data-type="scrape_error" onclick="setHistType(this,'scrape_error')">
+          <i class="bi bi-exclamation-circle me-1"></i>Błędy
+        </button>
+      </div>
+
+      <div class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small" id="hist-count">{{ timeline | length }} wpisów</span>
+        <select id="hist-date" class="form-select form-select-sm" style="max-width:140px" onchange="histFilter()">
+          <option value="all">Cały czas</option>
+          <option value="today">Dziś</option>
+          <option value="7d">7 dni</option>
+          <option value="30d">30 dni</option>
+        </select>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+{% if not timeline %}
+<div class="empty-state card shadow-sm py-5">
+  <i class="bi bi-clock-history"></i>
+  <h5 class="mt-3">Brak historii</h5>
+  <p class="text-muted mb-0">Zdarzenia pojawią się tu po dodaniu produktów i aktualizacji cen.</p>
+</div>
+{% else %}
+
+<div id="hist-timeline">
+{% for item in timeline %}
+
+  {# ── Run (aktualizacja wszystkich) ── #}
+  {% if item.kind == 'run' %}
+  <div class="hist-item hist-item-run mb-3"
+       data-type="run"
+       data-search="{{ item.events | map(attribute='product_name') | select | join(' ') | lower }}"
+       data-created="{{ item.created_at }}">
+    <div class="card glass border-0">
+      <div class="card-body p-3">
+        <div class="d-flex align-items-start gap-3">
+          <div class="hist-icon bg-primary-subtle text-primary flex-shrink-0">
+            <i class="bi bi-arrow-clockwise"></i>
+          </div>
+          <div class="flex-grow-1 overflow-hidden">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <span class="fw-semibold">Aktualizacja cen</span>
+              <span class="badge bg-secondary">{{ item.n_total }} produktów</span>
+              {% if item.n_changed > 0 %}
+              <span class="badge bg-warning text-dark">
+                <i class="bi bi-arrow-left-right me-1"></i>{{ item.n_changed }} zmian
+              </span>
+              {% endif %}
+              {% if item.n_errors > 0 %}
+              <span class="badge bg-danger">
+                <i class="bi bi-exclamation-circle me-1"></i>{{ item.n_errors }} błędów
+              </span>
+              {% endif %}
+              {% if item.n_unavail > 0 %}
+              <span class="badge bg-secondary">
+                <i class="bi bi-slash-circle me-1"></i>{{ item.n_unavail }} niedostępnych
+              </span>
+              {% endif %}
+            </div>
+            <div class="text-muted small mt-1">{{ item.created_at[:16] }}</div>
+          </div>
+          <button class="btn btn-sm btn-link text-muted p-0 flex-shrink-0"
+                  type="button"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#run-{{ loop.index }}"
+                  aria-expanded="false">
+            <i class="bi bi-chevron-down"></i>
+          </button>
+        </div>
+
+        <div class="collapse mt-3" id="run-{{ loop.index }}">
+          <div class="border-top pt-3">
+            {% for ev in item.events %}
+            {% set d = ev.details_parsed %}
+            <div class="d-flex align-items-start gap-2 py-1 small
+                        {% if not loop.last %}border-bottom{% endif %}">
+              <div class="flex-shrink-0" style="width:18px; text-align:center">
+                {% if ev.event_type == 'price_changed' %}
+                  <i class="bi bi-arrow-left-right text-warning"></i>
+                {% elif ev.event_type == 'price_unavailable' %}
+                  <i class="bi bi-slash-circle text-secondary"></i>
+                {% elif ev.event_type == 'scrape_error' %}
+                  <i class="bi bi-exclamation-circle text-danger"></i>
+                {% else %}
+                  <i class="bi bi-dot text-muted"></i>
+                {% endif %}
+              </div>
+              <div class="flex-grow-1 overflow-hidden">
+                <span class="fw-semibold text-truncate d-block" style="max-width:300px"
+                      title="{{ ev.product_name }}">{{ ev.product_name or '—' }}</span>
+                {% if ev.event_type == 'price_changed' %}
+                  <span class="text-muted">
+                    {{ "%.2f"|format(d.old_price) }} → {{ "%.2f"|format(d.new_price) }} {{ d.currency }}
+                    <span class="{% if d.pct < 0 %}text-success{% else %}text-danger{% endif %} ms-1">
+                      ({% if d.pct < 0 %}↓{% else %}↑{% endif %}{{ "%.1f"|format(d.pct|abs) }}%)
+                    </span>
+                  </span>
+                {% elif ev.event_type == 'scrape_error' %}
+                  <span class="text-danger">{{ d.error | truncate(80) }}</span>
+                {% elif ev.event_type == 'price_unavailable' %}
+                  <span class="text-muted">Niedostępny</span>
+                {% endif %}
+              </div>
+              <span class="text-muted flex-shrink-0">{{ ev.created_at[11:16] }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Pojedyncze zdarzenie ── #}
+  {% elif item.kind == 'event' %}
+  {% set ev = item.data %}
+  {% set d  = ev.details_parsed %}
+  <div class="hist-item mb-2"
+       data-type="{{ ev.event_type }}"
+       data-search="{{ (ev.product_name or '') | lower }}"
+       data-created="{{ ev.created_at }}">
+    <div class="card glass border-0">
+      <div class="card-body p-3">
+        <div class="d-flex align-items-center gap-3">
+
+          {# Ikona #}
+          {% if ev.event_type == 'product_added' %}
+          <div class="hist-icon bg-success-subtle text-success flex-shrink-0">
+            <i class="bi bi-plus-lg"></i>
+          </div>
+          {% elif ev.event_type == 'product_deleted' %}
+          <div class="hist-icon bg-danger-subtle text-danger flex-shrink-0">
+            <i class="bi bi-trash3"></i>
+          </div>
+          {% elif ev.event_type == 'price_changed' %}
+          <div class="hist-icon bg-warning-subtle text-warning flex-shrink-0">
+            <i class="bi bi-arrow-left-right"></i>
+          </div>
+          {% elif ev.event_type == 'field_updated' %}
+          <div class="hist-icon bg-info-subtle text-info flex-shrink-0">
+            <i class="bi bi-pencil"></i>
+          </div>
+          {% elif ev.event_type == 'scrape_error' %}
+          <div class="hist-icon bg-danger-subtle text-danger flex-shrink-0">
+            <i class="bi bi-exclamation-circle"></i>
+          </div>
+          {% else %}
+          <div class="hist-icon bg-secondary-subtle text-secondary flex-shrink-0">
+            <i class="bi bi-dot"></i>
+          </div>
+          {% endif %}
+
+          {# Treść #}
+          <div class="flex-grow-1 overflow-hidden">
+            <div class="fw-semibold text-truncate" title="{{ ev.product_name }}">
+              {% if ev.product_id %}
+              <a href="/product/{{ ev.product_id }}" class="text-decoration-none text-body">
+                {{ ev.product_name or '—' }}
+              </a>
+              {% else %}
+              {{ ev.product_name or '—' }}
+              {% endif %}
+              {% if ev.product_store %}
+              <span class="badge bg-secondary ms-1 fw-normal" style="font-size:0.65rem">{{ ev.product_store }}</span>
+              {% endif %}
+            </div>
+            <div class="text-muted small mt-1">
+              {% if ev.event_type == 'product_added' %}
+                Dodano produkt · {{ "%.2f"|format(d.price) if d.price else '—' }} {{ d.currency or '' }}
+              {% elif ev.event_type == 'product_deleted' %}
+                Usunięto produkt · ostatnia cena {{ "%.2f"|format(d.price) if d.price else '—' }} {{ d.currency or '' }}
+              {% elif ev.event_type == 'price_changed' %}
+                Zmiana ceny:
+                {{ "%.2f"|format(d.old_price) }} → {{ "%.2f"|format(d.new_price) }} {{ d.currency }}
+                <span class="{% if d.pct < 0 %}text-success{% else %}text-danger{% endif %}">
+                  ({% if d.pct < 0 %}↓{% else %}↑{% endif %}{{ "%.1f"|format(d.pct|abs) }}%)
+                </span>
+              {% elif ev.event_type == 'field_updated' %}
+                Edycja <strong>{{ d.field }}</strong>:
+                {{ d.old_value if d.old_value is not none else '—' }}
+                → {{ d.new_value if d.new_value is not none else '—' }}
+              {% elif ev.event_type == 'scrape_error' %}
+                Błąd: <span class="text-danger">{{ d.error | truncate(100) }}</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <span class="text-muted small flex-shrink-0">{{ ev.created_at[:16] }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+{% endfor %}
+</div>
+
+<div id="hist-no-results" class="text-center text-muted py-5 d-none">
+  <i class="bi bi-search" style="font-size:2rem; opacity:.5"></i>
+  <p class="mt-3">Brak wyników dla wybranych filtrów.</p>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='history_page.js') }}"></script>
+{% endblock %}

@@ -21,13 +21,7 @@ STORES_JSON_PATH = Path(__file__).parent / 'stores.json'
 OVERLAY_JS_PATH  = Path(__file__).parent / 'static' / 'wizard_overlay.js'
 SESSION_TTL      = 30 * 60  # 30 minut
 
-WIZARD_FIELDS = ['name', 'brand', 'price']
-
-NEXT_STEP = {
-    'awaiting_name':  'awaiting_brand',
-    'awaiting_brand': 'awaiting_price',
-    'awaiting_price': 'complete',
-}
+WIZARD_FIELDS = ['name', 'brand', 'price', 'thumbnail']
 
 _sessions: dict[str, 'WizardSession'] = {}
 _lock = threading.Lock()
@@ -165,12 +159,19 @@ def capture_field(session_id: str, field: str, selector: str, preview: str) -> d
             return {'ok': False, 'error': 'Session not found'}
         if field not in WIZARD_FIELDS:
             return {'ok': False, 'error': f'Nieznane pole: {field}'}
-
         sess.captured[field] = {'selector': selector, 'preview': preview}
-        next_step = NEXT_STEP.get(sess.step, 'complete')
-        sess.step = next_step
 
-    return {'ok': True, 'next_step': next_step}
+    return {'ok': True}
+
+
+def complete_session(session_id: str) -> dict:
+    """Użytkownik kliknął Gotowe w overlay — przejdź do kroku konfiguracji."""
+    with _lock:
+        sess = _sessions.get(session_id)
+        if not sess:
+            return {'ok': False, 'error': 'Session not found'}
+        sess.step = 'complete'
+    return {'ok': True}
 
 
 # ── Test scrapingu ─────────────────────────────────────────────────────────────
@@ -193,10 +194,17 @@ def test_scrape(session_id: str, price_type: str, vat_rate: int, currency: str) 
         if not info:
             continue
         sel = info['selector']
+        if not sel:  # pole pominięte (np. brak marki, brak thumbnailem)
+            continue
         el = soup.select_one(sel)
         if el is None:
             return {'ok': False, 'error': f'Selektor "{sel}" nie znalazł żadnego elementu na stronie'}
-        extracted[field_name] = el.get_text(strip=True)
+        if field_name == 'thumbnail':
+            extracted[field_name] = (
+                el.get('src') or el.get('data-src') or el.get('data-lazy-src') or ''
+            )
+        else:
+            extracted[field_name] = el.get_text(strip=True)
 
     # Parsowanie ceny
     raw_price = extracted.get('price', '')
@@ -205,10 +213,11 @@ def test_scrape(session_id: str, price_type: str, vat_rate: int, currency: str) 
     return {
         'ok': True,
         'result': {
-            'name':     extracted.get('name', ''),
-            'brand':    extracted.get('brand', ''),
-            'price':    price,
-            'currency': currency,
+            'name':      extracted.get('name', ''),
+            'brand':     extracted.get('brand', ''),
+            'price':     price,
+            'currency':  currency,
+            'thumbnail': extracted.get('thumbnail', ''),
         },
     }
 

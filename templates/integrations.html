@@ -42,24 +42,32 @@
     {% if css_stores %}
     <div class="d-flex flex-column gap-2">
       {% for store in css_stores %}
-      <div class="card glass p-3 d-flex flex-row align-items-center gap-3" id="store-row-{{ loop.index }}">
+      <div class="card glass p-3 d-flex flex-row align-items-center gap-3" id="store-row-{{ loop.index }}"
+           data-domain="{{ store.domain }}">
         <div class="rounded-circle d-flex align-items-center justify-content-center"
              style="width:38px;height:38px;background:rgba(255,255,255,0.12);flex-shrink:0">
           <i class="bi bi-plug fs-5"></i>
         </div>
         <div class="flex-grow-1">
-          <div class="fw-semibold">{{ store.display_name }}</div>
+          <div class="fw-semibold store-display-name">{{ store.display_name }}</div>
           <div class="text-muted" style="font-size:12px">{{ store.domain }}</div>
-          <div class="text-muted mt-1" style="font-size:11px">
+          <div class="text-muted mt-1 store-meta" style="font-size:11px">
             Cena: {{ 'brutto (TTC)' if store.price_type == 'gross' else 'netto (HT)' }}
             {% if store.price_type == 'gross' %} · VAT {{ store.vat_rate }}%{% endif %}
             · {{ store.currency }}
           </div>
         </div>
-        <button class="btn btn-sm btn-outline-danger"
-                onclick="deleteStore('{{ store.domain }}', this)">
-          <i class="bi bi-trash"></i>
-        </button>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-secondary"
+                  onclick="openEditModal('{{ store.domain }}', '{{ store.display_name }}', '{{ store.price_type }}', {{ store.vat_rate }}, '{{ store.currency }}')"
+                  title="Edytuj konfigurację">
+            <i class="bi bi-pencil"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-danger"
+                  onclick="deleteStore('{{ store.domain }}', this)">
+            <i class="bi bi-trash"></i>
+          </button>
+        </div>
       </div>
       {% endfor %}
     </div>
@@ -105,6 +113,63 @@
     </div>
   </div>
 </div>
+
+{# ── Modal: edytuj sklep ── #}
+<div class="modal fade" id="modal-edit" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content glass border-0">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-semibold">
+          <i class="bi bi-pencil me-2"></i>Edytuj sklep
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-3">
+        <input type="hidden" id="edit-domain">
+        <div class="mb-3">
+          <label class="form-label fw-semibold small" for="edit-display-name">Nazwa sklepu (wyświetlana)</label>
+          <input type="text" id="edit-display-name" class="form-control" placeholder="np. Amazon France">
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold small">Typ ceny na stronie</label>
+          <div class="d-flex gap-3">
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="edit_price_type" id="ept-gross" value="gross">
+              <label class="form-check-label small" for="ept-gross">Brutto (TTC)</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="edit_price_type" id="ept-net" value="net">
+              <label class="form-check-label small" for="ept-net">Netto (HT)</label>
+            </div>
+          </div>
+        </div>
+        <div class="row g-3" id="edit-vat-row">
+          <div class="col-6">
+            <label class="form-label fw-semibold small" for="edit-vat-rate">Stawka VAT (%)</label>
+            <input type="number" id="edit-vat-rate" class="form-control" min="0" max="99" step="1">
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-semibold small" for="edit-currency">Waluta</label>
+            <select id="edit-currency" class="form-select">
+              <option value="EUR">EUR</option>
+              <option value="GBP">GBP</option>
+              <option value="USD">USD</option>
+              <option value="PLN">PLN</option>
+            </select>
+          </div>
+        </div>
+        <div id="edit-error" class="text-danger small mt-3" style="display:none"></div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button type="button" class="btn btn-primary px-4" id="btn-save-edit">
+          <i class="bi bi-floppy me-1"></i>Zapisz zmiany
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -157,5 +222,74 @@ async function deleteStore(domain, btn) {
     alert('Błąd usuwania sklepu');
   }
 }
+
+// ── Edycja sklepu ──────────────────────────────────────────────────────────
+
+function openEditModal(domain, displayName, priceType, vatRate, currency) {
+  document.getElementById('edit-domain').value       = domain;
+  document.getElementById('edit-display-name').value = displayName;
+  document.getElementById('edit-vat-rate').value     = vatRate;
+  document.getElementById('edit-currency').value     = currency;
+  document.querySelector(`input[name="edit_price_type"][value="${priceType}"]`).checked = true;
+  document.getElementById('edit-vat-row').style.display = priceType === 'gross' ? '' : 'none';
+  document.getElementById('edit-error').style.display = 'none';
+  new bootstrap.Modal(document.getElementById('modal-edit')).show();
+}
+
+document.querySelectorAll('input[name="edit_price_type"]').forEach(r => {
+  r.addEventListener('change', function () {
+    document.getElementById('edit-vat-row').style.display = this.value === 'gross' ? '' : 'none';
+  });
+});
+
+document.getElementById('btn-save-edit').addEventListener('click', async function () {
+  const domain      = document.getElementById('edit-domain').value;
+  const displayName = document.getElementById('edit-display-name').value.trim();
+  const priceType   = document.querySelector('input[name="edit_price_type"]:checked').value;
+  const vatRate     = parseInt(document.getElementById('edit-vat-rate').value) || 20;
+  const currency    = document.getElementById('edit-currency').value;
+  const errEl       = document.getElementById('edit-error');
+
+  errEl.style.display = 'none';
+  if (!displayName) {
+    errEl.textContent = 'Podaj nazwę sklepu.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  this.disabled = true;
+  this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Zapisuję…';
+
+  try {
+    const res  = await fetch('/integrations/edit/' + encodeURIComponent(domain), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ display_name: displayName, price_type: priceType, vat_rate: vatRate, currency }),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      errEl.textContent = data.error || 'Błąd zapisu';
+      errEl.style.display = 'block';
+      return;
+    }
+    // Update the store row in the DOM
+    const row = document.querySelector(`[data-domain="${domain}"]`);
+    if (row) {
+      row.querySelector('.store-display-name').textContent = displayName;
+      const metaEl = row.querySelector('.store-meta');
+      if (metaEl) {
+        const vatPart = priceType === 'gross' ? ` · VAT ${vatRate}%` : '';
+        metaEl.textContent = `Cena: ${priceType === 'gross' ? 'brutto (TTC)' : 'netto (HT)'}${vatPart} · ${currency}`;
+      }
+    }
+    bootstrap.Modal.getInstance(document.getElementById('modal-edit')).hide();
+  } catch (e) {
+    errEl.textContent = 'Błąd sieci: ' + e.message;
+    errEl.style.display = 'block';
+  } finally {
+    this.disabled = false;
+    this.innerHTML = '<i class="bi bi-floppy me-1"></i>Zapisz zmiany';
+  }
+});
 </script>
 {% endblock %}

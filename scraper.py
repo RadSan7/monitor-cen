@@ -10,7 +10,11 @@ Strategy:
 
 import json
 import pathlib
+import queue as _queue
 import re
+import subprocess
+import sys
+import threading
 import time
 
 from bs4 import BeautifulSoup
@@ -131,55 +135,176 @@ def _fetch_curl(url: str) -> str | None:
     return None
 
 
-def _playwright_once(url: str, headless: bool) -> str:
-    """Single Playwright fetch attempt."""
-    pw = sync_playwright().start()
+# ── Persistent Playwright browsers — dedicated worker threads ─────────────────
+#
+# Playwright sync API używa greenletów związanych z wątkiem tworzącym instancję.
+# Wywołanie z innego wątku Flaska → "cannot switch to a different thread (exited)".
+# Rozwiązanie: jeden długożyjący wątek-demon per browser; komunikacja przez kolejki.
+
+_BROWSER_ARGS = [
+    '--disable-blink-features=AutomationControlled',
+    '--window-position=9999,9999',   # poza ekranem — prawy dolny róg
+    '--window-size=1280,800',
+]
+
+
+def _get_frontmost_app() -> str:
+    """Zwraca nazwę aktualnie aktywnej aplikacji (macOS)."""
+    if sys.platform != 'darwin':
+        return ''
     try:
-        args = ['--disable-blink-features=AutomationControlled']
-        if not headless:
-            args += ['--window-position=-10000,-10000', '--window-size=1280,800']
-        browser = pw.chromium.launch(headless=headless, args=args)
-        context = browser.new_context(
-            user_agent=_UA,
-            locale='fr-FR',
-            viewport={'width': 1280, 'height': 800},
+        r = subprocess.run(
+            ['osascript', '-e',
+             'tell application "System Events" to get name of first process whose frontmost is true'],
+            capture_output=True, text=True, timeout=2,
         )
-        context.add_init_script(
-            'Object.defineProperty(navigator, "webdriver", {get: () => undefined})'
-        )
-        page = context.new_page()
-        if not headless:
-            try:
-                cdp = context.new_cdp_session(page)
-                info = cdp.send('Browser.getWindowForTarget')
-                cdp.send('Browser.setWindowBounds', {
-                    'windowId': info['windowId'],
-                    'bounds': {'windowState': 'minimized'},
-                })
-            except Exception:
-                pass
-        try:
-            page.goto(url, wait_until='domcontentloaded', timeout=30_000)
-            page.wait_for_timeout(2_000)
-        except PlaywrightTimeout:
-            browser.close()
-            raise ConnectionError(
-                "Strona nie załadowała się w czasie 30 s. Sprawdź połączenie."
-            )
-        html = page.content()
-        browser.close()
-    finally:
-        pw.stop()
+        return r.stdout.strip()
+    except Exception:
+        return ''
+
+
+def _fix_focus_after_launch(prev_app: str):
+    """Ukryj wszystkie procesy Chromium i przywróć focus — jedno wywołanie osascript."""
+    if sys.platform != 'darwin':
+        return
+    # delay 0.8 w AppleScript czeka aż macOS zmieni frontmost; wszystko w jednym
+    # procesie żeby nie było race-condition między hide a activate
+    activate_line = f'tell application "{prev_app}" to activate' if prev_app else ''
+    script = f'''
+delay 0.8
+tell application "System Events"
+    repeat with proc in (every process whose name contains "Chromium")
+        set visible of proc to false
+    end repeat
+end tell
+{activate_line}
+'''
+    try:
+        subprocess.run(['osascript', '-e', script], capture_output=True, timeout=4)
+    except Exception:
+        pass
+
+
+def _do_fetch_in_browser(browser, url: str) -> str:
+    """Wykonuje fetch w podanym browserze (musi być wywołane z wątku właściciela)."""
+    context = browser.new_context(
+        user_agent=_UA,
+        locale='fr-FR',
+        viewport={'width': 1280, 'height': 800},
+    )
+    context.add_init_script(
+        'Object.defineProperty(navigator, "webdriver", {get: () => undefined})'
+    )
+    page = context.new_page()
+    try:
+        cdp = context.new_cdp_session(page)
+        info = cdp.send('Browser.getWindowForTarget')
+        cdp.send('Browser.setWindowBounds', {
+            'windowId': info['windowId'],
+            'bounds': {'windowState': 'minimized'},
+        })
+    except Exception:
+        pass
+    try:
+        page.goto(url, wait_until='domcontentloaded', timeout=30_000)
+        page.wait_for_timeout(2_000)
+    except PlaywrightTimeout:
+        context.close()
+        raise ConnectionError("Strona nie załadowała się w czasie 30 s. Sprawdź połączenie.")
+    html = page.content()
+    context.close()
     return html
 
 
-def _fetch_playwright(url: str) -> str:
-    """Try headless first (no window); fall back to visible if bot-detected."""
-    html = _playwright_once(url, headless=True)
-    if 'application/ld+json' in html:
-        return html
-    # headless was detected — retry with visible browser
-    return _playwright_once(url, headless=False)
+def _launch_browser(pw, headless: bool):
+    """Uruchamia browser i ukrywa jego okno, nie kradnąc focusu."""
+    prev_app = _get_frontmost_app()
+    browser = pw.chromium.launch(headless=headless, args=_BROWSER_ARGS)
+    # _fix_focus_after_launch sam czeka (delay 0.8) i robi hide + activate atomowo
+    threading.Thread(target=_fix_focus_after_launch, args=(prev_app,), daemon=True).start()
+    return browser
+
+
+def _browser_worker(task_queue: '_queue.Queue', headless: bool = False):
+    """Wątek-demon zarządzający jednym trwałym browserem Playwright."""
+    pw = sync_playwright().start()
+    browser = _launch_browser(pw, headless)
+    while True:
+        url, result_q = task_queue.get()
+        try:
+            html = _do_fetch_in_browser(browser, url)
+            result_q.put(('ok', html))
+        except Exception as exc:
+            # Jeśli browser padł, spróbuj go zrestartować
+            try:
+                browser.close()
+            except Exception:
+                pass
+            try:
+                pw.stop()
+            except Exception:
+                pass
+            try:
+                pw = sync_playwright().start()
+                browser = _launch_browser(pw, headless)
+                html = _do_fetch_in_browser(browser, url)
+                result_q.put(('ok', html))
+            except Exception as exc2:
+                result_q.put(('err', exc2))
+
+
+def _make_browser_worker(headless: bool = False):
+    """Tworzy kolejkę zadań i uruchamia wątek-demon browsera."""
+    q: '_queue.Queue' = _queue.Queue()
+    t = threading.Thread(target=_browser_worker, args=(q, headless), daemon=True)
+    t.start()
+    return q
+
+
+# Kolejki zadań — wątki startują przy pierwszym użyciu (lazy)
+_scraper_queue: '_queue.Queue | None' = None
+_scraper_queue_lock = threading.Lock()
+
+_fnac_queue: '_queue.Queue | None' = None
+_fnac_queue_lock = threading.Lock()
+
+
+def _get_scraper_queue() -> '_queue.Queue':
+    global _scraper_queue
+    if _scraper_queue is None:
+        with _scraper_queue_lock:
+            if _scraper_queue is None:
+                _scraper_queue = _make_browser_worker(headless=False)
+    return _scraper_queue
+
+
+def _get_fnac_queue() -> '_queue.Queue':
+    global _fnac_queue
+    if _fnac_queue is None:
+        with _fnac_queue_lock:
+            if _fnac_queue is None:
+                _fnac_queue = _make_browser_worker(headless=False)
+    return _fnac_queue
+
+
+def _dispatch_fetch(task_queue: '_queue.Queue', url: str, timeout: int = 45) -> str:
+    """Wysyła zadanie do wątku-browsera i czeka na wynik."""
+    result_q: '_queue.Queue' = _queue.Queue()
+    task_queue.put((url, result_q))
+    status, value = result_q.get(timeout=timeout)
+    if status == 'err':
+        raise value
+    return value
+
+
+def _fetch_with_browser(url: str) -> str:
+    """Fetch page using the persistent off-screen browser (worker thread)."""
+    return _dispatch_fetch(_get_scraper_queue(), url)
+
+
+def _fetch_fnac(url: str) -> str:
+    """Fetch fnacpro.com using a persistent browser (worker thread)."""
+    return _dispatch_fetch(_get_fnac_queue(), url)
 
 
 def scrape_product(url: str) -> dict:
@@ -195,15 +320,15 @@ def scrape_product(url: str) -> dict:
         None,
     )
 
-    # 1. Fast path — curl_cffi
-    html = _fetch_curl(url)
-
-    # 2. Fallback — visible Playwright browser
-    if html is None or '<html><head></head><body></body></html>' in html:
-        if css_config:
-            html = _fetch_playwright(url)
-        else:
-            html = _fetch_playwright(url)
+    # 1. fnacpro wymaga świeżego procesu Playwright (wykrywa trwały kontekst)
+    if 'fnacpro.com' in url:
+        html = _fetch_fnac(url)
+    else:
+        # 2. Fast path — curl_cffi
+        html = _fetch_curl(url)
+        # 3. Fallback — persistent off-screen browser
+        if html is None or '<html><head></head><body></body></html>' in html:
+            html = _fetch_with_browser(url)
 
     if css_config:
         return _extract_css(html, url, store, css_config)
@@ -229,9 +354,17 @@ def _extract_css(html: str, url: str, store: str, config: dict) -> dict:
     raw_price = _text(selectors.get('price')) or ''
     price = _parse_css_price(raw_price, config.get('price_type'), config.get('vat_rate', 20))
 
-    # Thumbnail: og:image meta tag (present on most e-commerce sites)
-    og_img = soup.find('meta', property='og:image')
-    thumbnail_url = og_img['content'] if og_img and og_img.get('content') else None
+    # Thumbnail: use wizard-selected selector if set, else fall back to og:image
+    thumb_sel = selectors.get('thumbnail', '')
+    if thumb_sel:
+        img_el = soup.select_one(thumb_sel)
+        thumbnail_url = (
+            img_el.get('src') or img_el.get('data-src') or img_el.get('data-lazy-src')
+            if img_el else None
+        )
+    else:
+        og_img = soup.find('meta', property='og:image')
+        thumbnail_url = og_img['content'] if og_img and og_img.get('content') else None
 
     return {
         'name':          name,
